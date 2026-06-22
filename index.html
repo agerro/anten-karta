@@ -18,11 +18,11 @@
     html,body{height:100%;overflow:hidden;
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       background:var(--bg);color:var(--text);}
-    #map{position:absolute;inset:0;}
+    #map{position:absolute;inset:0;z-index:0;}
 
     /* ── Top bar ── */
     #topbar{
-      position:absolute;top:0;left:0;right:0;z-index:90;
+      position:absolute;top:0;left:0;right:0;z-index:1000;
       display:flex;align-items:center;justify-content:space-between;
       padding:14px 16px 10px;
       background:linear-gradient(to bottom,rgba(11,26,46,.97) 65%,transparent);
@@ -36,7 +36,7 @@
     /* ── GPS pill ── */
     #gps-pill{
       position:absolute;top:74px;left:50%;transform:translateX(-50%);
-      z-index:90;pointer-events:none;
+      z-index:1000;pointer-events:none;
       padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;
       border:1.5px solid var(--border);background:var(--panel);
       color:var(--muted);white-space:nowrap;
@@ -48,7 +48,7 @@
 
     /* ── Normal bottom controls ── */
     #bottom{
-      position:absolute;bottom:0;left:0;right:0;z-index:90;
+      position:absolute;bottom:0;left:0;right:0;z-index:1000;
       padding:12px 14px 24px;
       background:linear-gradient(to top,rgba(11,26,46,.97) 65%,transparent);
       transition:transform .25s ease;
@@ -77,7 +77,7 @@
     /* ── Pick instruction banner (top, shown during picking) ── */
     #pick-banner{
       display:none;
-      position:absolute;top:0;left:0;right:0;z-index:200;
+      position:absolute;top:0;left:0;right:0;z-index:1001;
       padding:14px 16px 16px;
       background:linear-gradient(135deg,rgba(11,26,46,.98),rgba(20,40,70,.98));
       border-bottom:2px solid var(--step-color,var(--step1));
@@ -103,7 +103,7 @@
     /* ── Confirm bar (bottom, shown after tap) ── */
     #confirm-bar{
       display:none;
-      position:absolute;bottom:0;left:0;right:0;z-index:200;
+      position:absolute;bottom:0;left:0;right:0;z-index:1001;
       padding:14px 14px 28px;
       background:linear-gradient(to top,rgba(11,26,46,.98) 70%,transparent);
     }
@@ -119,7 +119,7 @@
 
     /* ── Calibration full-panel ── */
     #cpanel{
-      display:none;position:absolute;inset:0;z-index:100;
+      display:none;position:absolute;inset:0;z-index:1002;
       background:var(--panel);flex-direction:column;
     }
     #cpanel.open{display:flex;}
@@ -173,6 +173,13 @@
     .crosshair::before{top:50%;left:0;right:0;height:2px;transform:translateY(-50%);}
     .crosshair::after {left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);}
     .leaflet-control-zoom,.leaflet-control-attribution{display:none;}
+    .leaflet-pane{z-index:1 !important;}
+    .leaflet-map-pane{z-index:1 !important;}
+    .leaflet-tile-pane{z-index:2 !important;}
+    .leaflet-overlay-pane{z-index:3 !important;}
+    .leaflet-marker-pane{z-index:4 !important;}
+    .leaflet-popup-pane{z-index:5 !important;}
+    .leaflet-top,.leaflet-bottom{z-index:6 !important;}
     .leaflet-popup-content-wrapper{background:#0f2035;border:1px solid rgba(255,255,255,.2);
       color:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.5);}
     .leaflet-popup-tip{background:#0f2035;}
@@ -183,7 +190,7 @@
 
 <!-- Normal top bar -->
 <div id="topbar">
-  <div><div class="title">⚓ ANTEN</div><div class="sub">Sjökort 1:50 000 · WGS84</div></div>
+  <div><div class="title">⚓ ANTEN <span style="font-size:10px;font-weight:500;opacity:.55;letter-spacing:.5px">v4.1</span></div><div class="sub">Sjökort 1:50 000 · WGS84</div></div>
   <div id="coord-box"><span id="clat">–</span><br><span id="clon">–</span></div>
 </div>
 <div id="gps-pill" class="search">◎ Söker GPS…</div>
@@ -287,9 +294,11 @@ function dms(v,p,n){const d=v>=0?p:n,a=Math.abs(v),g=Math.floor(a),m=((a-g)*60).
 
 // ── NORMAL CONTROLS ────────────────────────────────────────────────
 function setOpacity(v){
-  chart.setOpacity(+v/100);document.getElementById('ovl').textContent=v+'%';}
+  chart.setOpacity(+v/100);document.getElementById('ovl').textContent=v+'%';
+  saveSettings();}
 function toggleOSM(){osmOn=!osmOn;osmOn?osm.addTo(map)&&osm.bringToBack():map.removeLayer(osm);
-  document.getElementById('bosm').classList.toggle('on',osmOn);}
+  document.getElementById('bosm').classList.toggle('on',osmOn);
+  saveSettings();}
 function locateMe(){locMk?map.setView(locMk.getLatLng(),15,{animate:true}):startGPS();}
 function fitMap(){map.fitBounds([sw,ne],{padding:[16,16]});}
 map.on('click',e=>{
@@ -573,11 +582,48 @@ function applyCalib(){
   const nb=calcBounds();sw=nb[0];ne=nb[1];
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
   rebuildChart();closeCalib();fitMap();
+  saveSettings();
 }
 function applyPreset(s1,s2,n1,n2){
-  sw=[s1,s2];ne=[n1,n2];rebuildChart();closeCalib();fitMap();}
+  sw=[s1,s2];ne=[n1,n2];rebuildChart();closeCalib();fitMap();
+  saveSettings();}
+
+// ── LOCALSTORAGE ─────────────────────────────────────────────────
+const LS_KEY = 'anten_calib_v1';
+
+function saveSettings() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      sw, ne,
+      opacity: +document.getElementById('osl').value,
+      osmOn
+    }));
+  } catch(e) {}
+}
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS_KEY));
+    if (!s) return false;
+    sw = s.sw; ne = s.ne;
+    if (s.opacity !== undefined) {
+      document.getElementById('osl').value = s.opacity;
+      document.getElementById('ovl').textContent = s.opacity + '%';
+    }
+    if (s.osmOn === false) {
+      osmOn = false;
+      map.removeLayer(osm);
+      document.getElementById('bosm').classList.remove('on');
+    }
+    return true;
+  } catch(e) { return false; }
+}
 
 // ── INIT ─────────────────────────────────────────────────────────
+// Load saved calibration first, then rebuild
+if (loadSettings()) {
+  rebuildChart(+document.getElementById('osl').value/100);
+}
 map.fitBounds([sw,ne],{padding:[12,12]});
 startGPS();
 </script>
