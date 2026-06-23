@@ -170,7 +170,7 @@
 <body>
 <div id="topbar">
   <div>
-    <div class="title">⚓ Öppna Sjökort <span class="vsub">v5.5</span></div>
+    <div class="title">⚓ Öppna Sjökort <span class="vsub">v5.6</span></div>
     <div class="sub" id="charts-sub">Laddar kartor…</div>
   </div>
   <div id="coord-box"><span id="clat">–</span><br><span id="clon">–</span></div>
@@ -569,8 +569,9 @@ const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
 let _activeChartIdx = -1;
 
 function getActiveChartIdx() {
-  const c = map.getCenter();
-  const lat = c.lat, lng = c.lng;
+  const ep = effectivePos();
+  const lat = ep ? ep.lat : map.getCenter().lat;
+  const lng = ep ? ep.lng : map.getCenter().lng;
   const ok = charts.map((ch, i) => ({ch, i}))
     .filter(({ch}) => ch._visible && ch._status === 'ok');
   if (!ok.length) return -1;
@@ -642,6 +643,90 @@ document.addEventListener('fullscreenchange', () => {
   const inFS = !!document.fullscreenElement;
   document.getElementById('btn-fs').textContent = inFS ? '✕ Helskärm' : '⛶ Fullskärm';
 });
+
+
+// ── FAKE POSITION ─────────────────────────────────────────────────
+let fakeMode  = false;   // picking mode — next map click sets position
+let fakePos   = null;    // { lat, lng } or null
+let fakeMk    = null;    // leaflet marker
+
+const fakePinIcon = L.divIcon({
+  className: '',
+  html: '<div class="fake-pin"></div>',
+  iconSize: [14,14], iconAnchor: [7,7]
+});
+
+function toggleFakeMode() {
+  if (fakeMode) {
+    // Second tap cancels picking without clearing existing fake pos
+    fakeMode = false;
+    updateFakeBtn();
+    return;
+  }
+  fakeMode = true;
+  updateFakeBtn();
+}
+
+function updateFakeBtn() {
+  const btn = document.getElementById('btn-fake');
+  if (!btn) return;
+  btn.classList.remove('active','picking');
+  if (fakePos)  btn.classList.add('active');
+  if (fakeMode) btn.classList.add('picking');
+  btn.textContent = fakeMode ? '📍 Klicka…' : (fakePos ? '📍 Aktiv' : '📍 Testa');
+}
+
+function setFakePos(lat, lng) {
+  fakePos  = { lat, lng };
+  fakeMode = false;
+
+  // Place/move marker
+  const ll = L.latLng(lat, lng);
+  if (fakeMk) {
+    fakeMk.setLatLng(ll);
+  } else {
+    fakeMk = L.marker(ll, { icon: fakePinIcon, zIndexOffset: 998 }).addTo(map);
+  }
+
+  // Update card
+  document.getElementById('fc-lat').textContent = dms(lat,'N','S');
+  document.getElementById('fc-lon').textContent = dms(lng,'E','W');
+  document.getElementById('fake-card').classList.add('visible');
+
+  // Update coord display & active chart
+  document.getElementById('clat').textContent = dms(lat,'N','S');
+  document.getElementById('clon').textContent = dms(lng,'E','W');
+  updateActiveOp();
+  updateFakeBtn();
+}
+
+function clearFakePos() {
+  fakePos  = null;
+  fakeMode = false;
+  if (fakeMk) { map.removeLayer(fakeMk); fakeMk = null; }
+  document.getElementById('fake-card').classList.remove('visible');
+
+  // Restore real GPS coords if available
+  if (locMk) {
+    const ll = locMk.getLatLng();
+    if (!fakePos) {
+      document.getElementById('clat').textContent = dms(ll.lat,'N','S');
+      document.getElementById('clon').textContent = dms(ll.lng,'E','W');
+    }
+  } else {
+    document.getElementById('clat').textContent = '–';
+    document.getElementById('clon').textContent = '–';
+  }
+  updateActiveOp();
+  updateFakeBtn();
+}
+
+// Helper: returns the "effective" position (fake or real GPS)
+function effectivePos() {
+  if (fakePos) return fakePos;
+  if (locMk)   return locMk.getLatLng();
+  return null;
+}
 
 // ── CALIBRATION FILE I/O ──────────────────────────────────────────
 
