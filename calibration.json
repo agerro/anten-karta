@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "exported": "2026-06-23T09:13:05.445Z",
-  "note": "Lägg denna fil i repot som calibration.json så laddas kalibreringen automatiskt",
+  "exported": "2026-06-23T16:39:49.814Z",
+  "note": "Lägg i repot som calibration.json för auto-laddning",
   "calibrations": {
     "anten": {
       "sw": [
@@ -21,6 +21,16 @@
       "ne": [
         57.982210343269266,
         12.518063496858288
+      ]
+    },
+    "ivosjon": {
+      "sw": [
+        56.045873567453796,
+        14.347637363758052
+      ],
+      "ne": [
+        56.1728114728328,
+        14.514655166730089
       ]
     }
   }
