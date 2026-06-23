@@ -9,199 +9,297 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <style>
-    :root{--bg:#0b1a2e;--panel:rgba(11,26,46,.97);--border:rgba(255,255,255,.18);
-      --text:#fff;--muted:#b8d4e8;--gold:#f5c842;--teal:#2a8aaa;
-      --green:#4ade80;--red:#f87171;--step1:#3b9eda;--step2:#f5a623;}
-    *{margin:0;padding:0;box-sizing:border-box;}
-    html,body{height:100%;overflow:hidden;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      background:var(--bg);color:var(--text);}
-    #map{position:absolute;inset:0;z-index:0;}
-    #topbar{position:absolute;top:0;left:0;right:0;z-index:1000;
-      display:flex;align-items:center;justify-content:space-between;
-      padding:14px 16px 10px;pointer-events:none;
-      background:linear-gradient(to bottom,rgba(11,26,46,.97) 65%,transparent);}
-    .title{font-size:19px;font-weight:800;letter-spacing:1.5px;}
-    .vsub{font-size:10px;font-weight:500;opacity:.5;letter-spacing:.5px;margin-left:4px;}
-    .sub{font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:.4px;}
-    #coord-box{text-align:right;font-family:monospace;font-size:12px;color:var(--gold);line-height:1.6;}
-    #gps-pill{position:absolute;top:74px;left:50%;transform:translateX(-50%);
-      z-index:1000;pointer-events:none;padding:6px 16px;border-radius:20px;
-      font-size:12px;font-weight:600;border:1.5px solid var(--border);
-      background:var(--panel);color:var(--muted);white-space:nowrap;
-      transition:opacity .5s,color .3s,border-color .3s;}
-    #gps-pill.search{border-color:var(--gold);color:var(--gold);}
-    #gps-pill.ok{border-color:var(--green);color:var(--green);}
-    #gps-pill.err{border-color:var(--red);color:var(--red);}
-    #bottom{position:absolute;bottom:0;left:0;right:0;z-index:1000;
-      padding:12px 14px 24px;transition:transform .25s ease;
-      background:linear-gradient(to top,rgba(11,26,46,.97) 65%,transparent);}
-    #bottom.hidden{transform:translateY(110%);}
-    .btns{display:flex;gap:8px;}
-    .btn{flex:1;padding:12px 8px;border:none;border-radius:10px;
-      font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;
-      display:flex;align-items:center;justify-content:center;gap:4px;
-      transition:transform .1s,opacity .1s;}
-    .btn:active{transform:scale(.95);opacity:.8;}
-    .btn-gold{background:var(--gold);color:var(--bg);}
-    .btn-glass{background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.25);}
-    .btn-glass.on{background:var(--teal);border-color:var(--teal);}
-    .btn-green{background:var(--green);color:#0b2010;}
-    .btn-red{background:rgba(248,113,113,.2);color:var(--red);border:1.5px solid var(--red);}
-    .fullpanel{display:none;position:absolute;inset:0;z-index:1002;
-      background:var(--panel);flex-direction:column;}
-    .fullpanel.open{display:flex;}
-    .fp-head{padding:18px 18px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
-    .fp-title{font-size:15px;font-weight:800;color:var(--gold);letter-spacing:.8px;text-transform:uppercase;}
-    .fp-sub{font-size:13px;color:#fff;margin-top:5px;line-height:1.5;}
-    .fp-body{flex:1;overflow-y:auto;padding:16px 18px;}
-    .fp-foot{padding:12px 18px 24px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;}
-    .sec{font-size:10px;font-weight:800;color:var(--muted);letter-spacing:1px;
-      text-transform:uppercase;margin:16px 0 8px;}
-    .sec:first-child{margin-top:0;}
-    .chart-card{background:rgba(255,255,255,.07);border:1px solid var(--border);
-      border-radius:10px;padding:14px;margin-bottom:10px;}
-    .cc-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-    .cc-toggle{width:40px;height:24px;border-radius:12px;background:rgba(255,255,255,.15);
-      border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
-    .cc-toggle.on{background:var(--teal);}
-    .cc-toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;
-      border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
-    .cc-toggle.on::after{transform:translateX(16px);}
-    .cc-name{font-size:13px;font-weight:700;color:#fff;}
-    .cc-desc{font-size:11px;color:var(--muted);margin-top:2px;}
-    .cc-status{font-size:10px;margin-top:2px;}
-    .cc-status.ok{color:var(--green);}
-    .cc-status.err{color:var(--red);}
-    .cc-status.loading{color:var(--gold);}
-    .sr{display:flex;align-items:center;gap:10px;}
-    .sr-lbl{font-size:11px;color:var(--muted);width:54px;}
-    input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;
-      background:var(--teal);outline:none;}
-    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;
-      border-radius:50%;background:var(--gold);border:2.5px solid var(--bg);cursor:pointer;}
-    .sr-val{font-size:11px;font-weight:700;color:var(--gold);font-family:monospace;width:34px;text-align:right;}
-    .cc-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
-    .cc-btn{padding:8px 12px;border:none;border-radius:8px;font-size:11px;font-weight:700;
-      cursor:pointer;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);}
-    .cc-btn.calib{background:rgba(42,138,170,.25);border-color:var(--teal);color:#7dd3fc;}
-    .cc-btn:active{opacity:.7;}
-    .info-box{padding:12px 14px;border-radius:8px;font-size:12px;line-height:1.7;
-      background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);}
-    .info-box code{font-family:monospace;color:var(--gold);font-size:11px;}
-    #pick-banner{display:none;position:absolute;top:0;left:0;right:0;z-index:1001;
+    :root {
+      --bg:    #0b1a2e;
+      --panel: rgba(11,26,46,.97);
+      --bdr:   rgba(255,255,255,.18);
+      --muted: #b8d4e8;
+      --gold:  #f5c842;
+      --teal:  #2a8aaa;
+      --green: #4ade80;
+      --red:   #f87171;
+      --s1:    #3b9eda;
+      --s2:    #f5a623;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:var(--bg); color:#fff; }
+    #map { position:absolute; inset:0; z-index:0; }
+
+    /* Top bar */
+    #topbar {
+      position:absolute; top:0; left:0; right:0; z-index:1000;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px 10px; pointer-events:none;
+      background:linear-gradient(to bottom,rgba(11,26,46,.97) 65%,transparent);
+    }
+    .t-title { font-size:18px; font-weight:800; letter-spacing:1.5px; }
+    .t-ver   { font-size:10px; font-weight:500; opacity:.45; margin-left:4px; }
+    .t-sub   { font-size:11px; color:var(--muted); margin-top:2px; }
+    #t-coords { text-align:right; font-family:monospace; font-size:12px;
+      color:var(--gold); line-height:1.6; }
+
+    /* GPS pill */
+    #gps-pill {
+      position:absolute; top:74px; left:50%; transform:translateX(-50%);
+      z-index:1000; pointer-events:none;
+      padding:6px 16px; border-radius:20px; font-size:12px; font-weight:600;
+      border:1.5px solid var(--bdr); background:var(--panel);
+      color:var(--muted); white-space:nowrap;
+      transition: opacity .5s, color .3s, border-color .3s;
+    }
+    #gps-pill.search { border-color:var(--gold);  color:var(--gold);  }
+    #gps-pill.ok     { border-color:var(--green); color:var(--green); }
+    #gps-pill.err    { border-color:var(--red);   color:var(--red);   }
+
+    /* Bottom bar */
+    #bottom {
+      position:absolute; bottom:0; left:0; right:0; z-index:1000;
+      background:linear-gradient(to top,rgba(11,26,46,.97) 65%,transparent);
+      padding:10px 14px 24px;
+      transition: transform .25s ease;
+    }
+    #bottom.hidden { transform:translateY(110%); }
+
+    /* Opacity row */
+    #op-row {
+      display:flex; align-items:center; gap:8px; margin-bottom:9px;
+    }
+    .or-dot  { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .or-name { font-size:11px; font-weight:700; color:#fff; flex-shrink:0;
+      width:88px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #op-slider {
+      flex:1; -webkit-appearance:none; height:4px;
+      border-radius:2px; outline:none;
+      background:rgba(255,255,255,.2);
+    }
+    #op-slider::-webkit-slider-thumb {
+      -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+      background:var(--gold); border:2.5px solid var(--bg); cursor:pointer;
+    }
+    #op-slider:disabled { opacity:.35; }
+    .or-pct { font-size:11px; font-weight:700; color:var(--gold);
+      font-family:monospace; width:32px; text-align:right; flex-shrink:0; }
+
+    /* Button row */
+    .btns { display:flex; gap:7px; }
+    .btn {
+      flex:1; padding:11px 6px; border:none; border-radius:10px;
+      font-size:11px; font-weight:700; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:transform .1s, opacity .1s;
+    }
+    .btn:active { transform:scale(.95); opacity:.8; }
+    .btn-gold  { background:var(--gold); color:var(--bg); }
+    .btn-glass { background:rgba(255,255,255,.12); color:#fff;
+      border:1.5px solid rgba(255,255,255,.22); }
+    .btn-glass.on     { background:var(--teal);  border-color:var(--teal);  }
+    .btn-glass.pick   { background:rgba(245,200,66,.15); border-color:var(--gold); color:var(--gold); }
+    .btn-glass.active { background:var(--gold); border-color:var(--gold); color:var(--bg); }
+
+    /* Fake position card */
+    #fake-card {
+      position:absolute; bottom:90px; left:50%; transform:translateX(-50%);
+      z-index:1000; display:none; align-items:center; gap:10px;
+      background:rgba(15,8,35,.94); backdrop-filter:blur(6px);
+      border:1.5px solid var(--gold); border-radius:12px;
+      padding:8px 12px 8px 14px; white-space:nowrap;
+      box-shadow:0 2px 14px rgba(245,200,66,.25);
+    }
+    #fake-card.visible { display:flex; }
+    .fc-lbl  { font-size:10px; font-weight:800; color:var(--gold);
+      letter-spacing:.8px; text-transform:uppercase; }
+    .fc-coord { font-size:11px; font-family:monospace; color:#fff; line-height:1.5; }
+    .fc-rm   { background:none; border:1.5px solid rgba(248,113,113,.5);
+      border-radius:7px; color:var(--red); font-size:11px; font-weight:700;
+      padding:5px 10px; cursor:pointer; }
+
+    /* Full-screen panels */
+    .panel {
+      display:none; position:absolute; inset:0; z-index:1002;
+      background:var(--panel); flex-direction:column;
+    }
+    .panel.open { display:flex; }
+    .ph { padding:18px 18px 14px; border-bottom:1px solid var(--bdr); flex-shrink:0; }
+    .ph-title { font-size:15px; font-weight:800; color:var(--gold);
+      letter-spacing:.8px; text-transform:uppercase; }
+    .ph-sub { font-size:13px; color:#fff; margin-top:5px; line-height:1.5; }
+    .pb { flex:1; overflow-y:auto; padding:16px 18px; }
+    .pf { padding:12px 18px 24px; border-top:1px solid var(--bdr);
+      display:flex; gap:8px; flex-shrink:0; }
+    .sec { font-size:10px; font-weight:800; color:var(--muted);
+      letter-spacing:1px; text-transform:uppercase; margin:14px 0 8px; }
+    .sec:first-child { margin-top:0; }
+
+    /* Chart cards in layer panel */
+    .cc { background:rgba(255,255,255,.07); border:1px solid var(--bdr);
+      border-radius:10px; padding:14px; margin-bottom:8px; }
+    .cc-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .cc-tog { width:40px; height:24px; border-radius:12px; border:none; cursor:pointer;
+      background:rgba(255,255,255,.15); position:relative; transition:background .2s; flex-shrink:0; }
+    .cc-tog.on { background:var(--teal); }
+    .cc-tog::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px;
+      border-radius:50%; background:#fff; transition:transform .2s; }
+    .cc-tog.on::after { transform:translateX(16px); }
+    .cc-name { font-size:13px; font-weight:700; color:#fff; }
+    .cc-desc { font-size:11px; color:var(--muted); margin-top:2px; }
+    .cc-st   { font-size:10px; margin-top:2px; }
+    .cc-st.ok { color:var(--green); } .cc-st.err { color:var(--red); }
+    .cc-st.loading { color:var(--gold); }
+    .cc-sl-row { display:flex; align-items:center; gap:8px; }
+    .cc-sl-lbl { font-size:11px; color:var(--muted); width:52px; flex-shrink:0; }
+    .cc-sl { flex:1; -webkit-appearance:none; height:3px; border-radius:2px;
+      background:var(--teal); outline:none; }
+    .cc-sl::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px;
+      border-radius:50%; background:var(--gold); border:2px solid var(--bg); cursor:pointer; }
+    .cc-sl-val { font-size:11px; font-weight:700; color:var(--gold);
+      font-family:monospace; width:30px; text-align:right; flex-shrink:0; }
+    .cc-btns { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+    .cc-btn { padding:7px 11px; border:none; border-radius:8px; font-size:11px;
+      font-weight:700; cursor:pointer; background:rgba(255,255,255,.1);
+      color:#fff; border:1px solid rgba(255,255,255,.2); }
+    .cc-btn.calib { background:rgba(42,138,170,.25); border-color:var(--teal); color:#7dd3fc; }
+    .cc-btn:active { opacity:.7; }
+    .info-box { padding:12px 14px; border-radius:8px; font-size:12px; line-height:1.7;
+      background:rgba(255,255,255,.05); border:1px solid var(--bdr); color:var(--muted); }
+    .info-box code { font-family:monospace; color:var(--gold); font-size:11px; }
+
+    /* Pick banner */
+    #pick-banner {
+      display:none; position:absolute; top:0; left:0; right:0; z-index:1001;
       padding:14px 16px 16px;
       background:linear-gradient(135deg,rgba(11,26,46,.98),rgba(20,40,70,.98));
-      border-bottom:2px solid var(--step1);}
-    #pick-banner.visible{display:block;}
-    .pb-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
-    .pb-badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800;
-      letter-spacing:.8px;text-transform:uppercase;flex-shrink:0;margin-top:2px;}
-    .badge-img{background:rgba(59,158,218,.25);color:var(--step1);border:1px solid var(--step1);}
-    .badge-osm{background:rgba(245,166,35,.25);color:var(--step2);border:1px solid var(--step2);}
-    .pb-title{font-size:15px;font-weight:800;color:#fff;line-height:1.3;margin-top:8px;}
-    .pb-hint{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4;}
-    #pick-cancel-btn{padding:6px 12px;border:1.5px solid rgba(255,255,255,.3);
-      border-radius:8px;background:transparent;color:var(--muted);font-size:12px;
-      font-weight:700;cursor:pointer;flex-shrink:0;}
-    #confirm-bar{display:none;position:absolute;bottom:0;left:0;right:0;z-index:1001;
+      border-bottom:2px solid var(--s1);
+    }
+    #pick-banner.visible { display:block; }
+    .pb-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .pb-badge { padding:3px 10px; border-radius:20px; font-size:10px; font-weight:800;
+      letter-spacing:.8px; text-transform:uppercase; flex-shrink:0; }
+    .badge-img { background:rgba(59,158,218,.25); color:var(--s1); border:1px solid var(--s1); }
+    .badge-osm { background:rgba(245,166,35,.25); color:var(--s2); border:1px solid var(--s2); }
+    .pb-title { font-size:15px; font-weight:800; color:#fff; margin-top:8px; }
+    .pb-hint  { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4; }
+    #pick-cancel { padding:6px 12px; border:1.5px solid rgba(255,255,255,.3);
+      border-radius:8px; background:transparent; color:var(--muted);
+      font-size:12px; font-weight:700; cursor:pointer; }
+
+    /* Confirm bar */
+    #confirm-bar {
+      display:none; position:absolute; bottom:0; left:0; right:0; z-index:1001;
       padding:14px 14px 28px;
-      background:linear-gradient(to top,rgba(11,26,46,.98) 70%,transparent);}
-    #confirm-bar.visible{display:block;}
-    .ci{font-size:12px;color:var(--muted);font-family:monospace;margin-bottom:12px;
-      padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid var(--border);
-      border-radius:8px;line-height:1.7;}
-    .ci strong{color:#fff;}
-    .cb-btns{display:flex;gap:10px;}
-    .pt-card{background:rgba(255,255,255,.07);border:1px solid var(--border);
-      border-radius:10px;padding:12px 14px;margin-bottom:8px;
-      display:flex;align-items:flex-start;gap:12px;}
-    .pt-num{width:26px;height:26px;border-radius:50%;flex-shrink:0;background:var(--teal);
-      display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-top:2px;}
-    .pt-info{flex:1;font-size:11px;line-height:1.8;font-family:monospace;color:var(--muted);}
-    .pt-info strong{color:#fff;font-size:12px;font-family:sans-serif;}
-    .pt-del{padding:5px 10px;border:none;border-radius:6px;
-      background:rgba(248,113,113,.2);color:var(--red);font-size:12px;font-weight:700;cursor:pointer;}
-    .add-btn{width:100%;padding:13px;border:1.5px dashed rgba(255,255,255,.3);
-      border-radius:10px;background:transparent;color:var(--muted);font-size:13px;
-      font-weight:600;cursor:pointer;margin-bottom:8px;}
-    .add-btn:active{background:rgba(255,255,255,.07);}
-    .rms-row{padding:10px 14px;border-radius:8px;font-size:12px;font-weight:600;margin:4px 0 8px;}
-    .rms-good{background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.3);color:var(--green);}
-    .rms-warn{background:rgba(245,200,66,.12);border:1px solid rgba(245,200,66,.3);color:var(--gold);}
-    .preset{width:100%;padding:11px 14px;margin-bottom:7px;
-      background:rgba(255,255,255,.07);border:1px solid var(--border);
-      border-radius:9px;color:#fff;font-size:12px;text-align:left;cursor:pointer;line-height:1.5;}
-    .preset strong{color:var(--gold);}
-    .preset small{font-family:monospace;font-size:11px;color:var(--muted);}
-    .preset:active{background:rgba(42,138,170,.3);}
+      background:linear-gradient(to top,rgba(11,26,46,.98) 70%,transparent);
+    }
+    #confirm-bar.visible { display:block; }
+    .ci { font-size:12px; color:var(--muted); font-family:monospace; margin-bottom:12px;
+      padding:10px 14px; background:rgba(255,255,255,.07);
+      border:1px solid var(--bdr); border-radius:8px; line-height:1.7; }
+    .ci strong { color:#fff; }
 
-    
+    /* Calibration point cards */
+    .pt-card { background:rgba(255,255,255,.07); border:1px solid var(--bdr);
+      border-radius:10px; padding:12px 14px; margin-bottom:8px;
+      display:flex; align-items:flex-start; gap:12px; }
+    .pt-num { width:26px; height:26px; border-radius:50%; flex-shrink:0;
+      background:var(--teal); display:flex; align-items:center;
+      justify-content:center; font-size:12px; font-weight:800; }
+    .pt-info { flex:1; font-size:11px; line-height:1.8;
+      font-family:monospace; color:var(--muted); }
+    .pt-info strong { color:#fff; font-size:12px; font-family:sans-serif; }
+    .pt-del { padding:5px 10px; border:none; border-radius:6px;
+      background:rgba(248,113,113,.2); color:var(--red); font-size:12px;
+      font-weight:700; cursor:pointer; }
+    .add-btn { width:100%; padding:13px; border:1.5px dashed rgba(255,255,255,.3);
+      border-radius:10px; background:transparent; color:var(--muted);
+      font-size:13px; font-weight:600; cursor:pointer; margin-bottom:8px; }
+    .add-btn:active { background:rgba(255,255,255,.07); }
+    .rms-good { padding:10px 14px; border-radius:8px; font-size:12px; font-weight:600;
+      background:rgba(74,222,128,.12); border:1px solid rgba(74,222,128,.3); color:var(--green); margin-bottom:8px; }
+    .rms-warn { padding:10px 14px; border-radius:8px; font-size:12px; font-weight:600;
+      background:rgba(245,200,66,.12); border:1px solid rgba(245,200,66,.3); color:var(--gold); margin-bottom:8px; }
+    .preset { width:100%; padding:11px 14px; margin-bottom:7px;
+      background:rgba(255,255,255,.07); border:1px solid var(--bdr);
+      border-radius:9px; color:#fff; font-size:12px; text-align:left;
+      cursor:pointer; line-height:1.5; }
+    .preset strong { color:var(--gold); }
+    .preset small { font-family:monospace; font-size:11px; color:var(--muted); }
+    .preset:active { background:rgba(42,138,170,.3); }
 
-    .leaflet-pane,.leaflet-map-pane{z-index:1 !important;}
-    .leaflet-tile-pane{z-index:2 !important;}
-    .leaflet-overlay-pane{z-index:3 !important;}
-    .leaflet-marker-pane{z-index:4 !important;}
-    .leaflet-popup-pane{z-index:5 !important;}
-    .leaflet-top,.leaflet-bottom{z-index:6 !important;}
-    .leaflet-control-zoom,.leaflet-control-attribution{display:none;}
-    .leaflet-popup-content-wrapper{background:#0f2035;border:1px solid rgba(255,255,255,.2);
-      color:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.5);}
-    .leaflet-popup-tip{background:#0f2035;}
-    .leaflet-popup-content{font-family:monospace;font-size:12px;line-height:1.7;margin:10px 14px;}
-    .gps-dot{width:14px;height:14px;position:relative;}
-    .gps-dot::before{content:'';position:absolute;inset:0;border-radius:50%;
-      background:var(--green);animation:pulse 1.6s ease-out infinite;}
-    .gps-dot::after{content:'';position:absolute;top:50%;left:50%;
-      transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;
-      background:var(--green);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);}
-    @keyframes pulse{0%{transform:scale(1);opacity:.3}100%{transform:scale(3.5);opacity:0}}
-    .cpin{width:28px;height:28px;border-radius:50%;border:3px solid #fff;
-      box-shadow:0 2px 8px rgba(0,0,0,.6);display:flex;align-items:center;
-      justify-content:center;font-size:12px;font-weight:900;}
-    .cpin-img{background:var(--step1);color:#fff;}
-    .cpin-osm{background:var(--step2);color:#fff;}
-    .crosshair{width:28px;height:28px;position:relative;}
-    .crosshair::before,.crosshair::after{content:'';position:absolute;background:var(--gold);}
-    .crosshair::before{top:50%;left:0;right:0;height:2px;transform:translateY(-50%);}
-    .crosshair::after{left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);}
+    /* GPS + calib markers */
+    .gps-dot { width:14px; height:14px; position:relative; }
+    .gps-dot::before { content:''; position:absolute; inset:0; border-radius:50%;
+      background:var(--green); animation:gps-pulse 1.6s ease-out infinite; }
+    .gps-dot::after  { content:''; position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%); width:10px; height:10px; border-radius:50%;
+      background:var(--green); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+    @keyframes gps-pulse { 0%{transform:scale(1);opacity:.3} 100%{transform:scale(3.5);opacity:0} }
+    .fake-pin { width:14px; height:14px; border-radius:50%;
+      background:var(--gold); border:2.5px solid #fff;
+      box-shadow:0 0 0 3px rgba(245,200,66,.3),0 2px 6px rgba(0,0,0,.5); }
+    .cpin { width:28px; height:28px; border-radius:50%; border:3px solid #fff;
+      box-shadow:0 2px 8px rgba(0,0,0,.6); display:flex; align-items:center;
+      justify-content:center; font-size:12px; font-weight:900; }
+    .cpin-img { background:var(--s1); color:#fff; }
+    .cpin-osm { background:var(--s2); color:#fff; }
+    .xhair { width:28px; height:28px; position:relative; }
+    .xhair::before,.xhair::after { content:''; position:absolute; background:var(--gold); }
+    .xhair::before { top:50%;left:0;right:0;height:2px;transform:translateY(-50%); }
+    .xhair::after  { left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%); }
+
+    /* Leaflet overrides */
+    .leaflet-pane,.leaflet-map-pane { z-index:1 !important; }
+    .leaflet-tile-pane    { z-index:2 !important; }
+    .leaflet-overlay-pane { z-index:3 !important; }
+    .leaflet-marker-pane  { z-index:4 !important; }
+    .leaflet-popup-pane   { z-index:5 !important; }
+    .leaflet-top,.leaflet-bottom { z-index:6 !important; }
+    .leaflet-control-zoom,.leaflet-control-attribution { display:none; }
+    .leaflet-popup-content-wrapper { background:#0f2035;
+      border:1px solid rgba(255,255,255,.2); color:#fff;
+      border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.5); }
+    .leaflet-popup-tip { background:#0f2035; }
+    .leaflet-popup-content { font-family:monospace; font-size:12px;
+      line-height:1.7; margin:10px 14px; }
   </style>
 </head>
 <body>
+
+<!-- Top bar -->
 <div id="topbar">
   <div>
-    <div class="title">⚓ Öppna Sjökort <span class="vsub">v5.6</span></div>
-    <div class="sub" id="charts-sub">Laddar kartor…</div>
+    <div class="t-title">⚓ Öppna Sjökort <span class="t-ver">v6.0</span></div>
+    <div class="t-sub" id="t-sub">Laddar kartor…</div>
   </div>
-  <div id="coord-box"><span id="clat">–</span><br><span id="clon">–</span></div>
+  <div id="t-coords"><span id="t-lat">–</span><br><span id="t-lon">–</span></div>
 </div>
 <div id="gps-pill" class="search">◎ Söker GPS…</div>
+
 <div id="map"></div>
+
 <!-- Fake position card -->
 <div id="fake-card">
   <div>
-    <div class="fc-label">📍 Testposition</div>
-    <div class="fc-coords" id="fc-lat">–</div>
-    <div class="fc-coords" id="fc-lon">–</div>
+    <div class="fc-lbl">📍 Testposition</div>
+    <div class="fc-coord" id="fc-lat">–</div>
+    <div class="fc-coord" id="fc-lon">–</div>
   </div>
-  <button class="fc-remove" onclick="clearFakePos()">✕ Ta bort</button>
+  <button class="fc-rm" onclick="clearFake()">✕ Ta bort</button>
 </div>
 
+<!-- Bottom bar -->
 <div id="bottom">
-  <!-- Opacity row — always visible, controls active chart -->
   <div id="op-row">
-    <div class="or-dot" id="or-dot"></div>
+    <div class="or-dot" id="or-dot" style="background:var(--teal)"></div>
     <span class="or-name" id="or-name">–</span>
     <input type="range" id="op-slider" min="0" max="100" value="85"
-      oninput="opSlide(this)">
+      oninput="opSlide(this)" disabled>
     <span class="or-pct" id="or-pct">85%</span>
   </div>
-  <!-- Main buttons -->
   <div class="btns">
     <button class="btn btn-gold"  onclick="locateMe()">◎ Hitta mig</button>
-    <button class="btn btn-glass on" id="bosm" onclick="toggleOSM()">⊞ OSM</button>
-    <button class="btn btn-glass" id="btn-fake" onclick="toggleFakeMode()">📍 Testa</button>
-    <button class="btn btn-glass" id="btn-fs" onclick="toggleFS()">⛶ Fullskärm</button>
+    <button class="btn btn-glass on" id="btn-osm"  onclick="toggleOSM()">⊞ OSM</button>
+    <button class="btn btn-glass" id="btn-fake" onclick="toggleFake()">📍 Testa</button>
+    <button class="btn btn-glass" id="btn-fs"   onclick="toggleFS()">⛶ Fullskärm</button>
     <button class="btn btn-glass" onclick="openLayers()">☰ Lager</button>
   </div>
 </div>
@@ -210,7 +308,7 @@
 <div id="pick-banner">
   <div class="pb-row">
     <span id="pb-badge" class="pb-badge badge-img">Sjökort</span>
-    <button id="pick-cancel-btn" onclick="cancelPick()">✕ Avbryt</button>
+    <button id="pick-cancel" onclick="cancelPick()">✕ Avbryt</button>
   </div>
   <div class="pb-title" id="pb-title">Tryck på sjökortet</div>
   <div class="pb-hint"  id="pb-hint">Välj en känd plats</div>
@@ -219,272 +317,504 @@
 <!-- Confirm bar -->
 <div id="confirm-bar">
   <div class="ci" id="ci">–</div>
-  <div class="cb-btns">
-    <button class="btn btn-red"   style="flex:.8" onclick="retryPick()">↩ Försök igen</button>
-    <button class="btn btn-green" style="flex:1.2" onclick="confirmPick()">✓ Bekräfta</button>
+  <div class="btns">
+    <button class="btn btn-glass" style="background:rgba(248,113,113,.2);border-color:var(--red);color:var(--red)"
+      onclick="retryPick()">↩ Försök igen</button>
+    <button class="btn btn-gold" onclick="confirmPick()">✓ Bekräfta</button>
   </div>
 </div>
 
 <!-- Layer panel -->
-<div id="layer-panel" class="fullpanel">
-  <div class="fp-head">
-    <div class="fp-title">☰ Lager</div>
-    <div class="fp-sub">Hantera sjökort och kartlager</div>
+<div id="layer-panel" class="panel">
+  <div class="ph">
+    <div class="ph-title">☰ Lager</div>
+    <div class="ph-sub">Hantera sjökort</div>
   </div>
-  <div class="fp-body" id="layer-body"></div>
-  <div class="fp-foot" style="flex-direction:column;gap:8px">
-    <div style="display:flex;gap:8px;width:100%">
+  <div class="pb" id="layer-body"></div>
+  <div class="pf" style="flex-direction:column;gap:8px">
+    <div style="display:flex;gap:8px">
       <button class="btn btn-glass" style="font-size:11px" onclick="exportCalib()">⬇ Exportera kalibrering</button>
-      <button class="btn btn-glass" style="font-size:11px" onclick="document.getElementById('import-file').click()">⬆ Importera</button>
-      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importCalib(this)">
+      <button class="btn btn-glass" style="font-size:11px" onclick="document.getElementById('imp').click()">⬆ Importera</button>
+      <input type="file" id="imp" accept=".json" style="display:none" onchange="importCalib(this)">
     </div>
     <button class="btn btn-glass" onclick="closeLayers()">✕ Stäng</button>
   </div>
 </div>
 
 <!-- Calibration panel -->
-<div id="calib-panel" class="fullpanel">
-  <div class="fp-head">
-    <div class="fp-title">⊕ Kalibrera</div>
-    <div class="fp-sub" id="calib-name">–</div>
+<div id="calib-panel" class="panel">
+  <div class="ph">
+    <div class="ph-title">⊕ Kalibrera</div>
+    <div class="ph-sub" id="calib-name">–</div>
   </div>
-  <div class="fp-body" id="calib-body"></div>
-  <div class="fp-foot">
+  <div class="pb" id="calib-body"></div>
+  <div class="pf">
     <button class="btn btn-glass" style="max-width:90px" onclick="closeCalib()">✕ Stäng</button>
     <button class="btn btn-gold" id="apply-btn" onclick="applyCalib()" style="display:none">✓ Tillämpa</button>
   </div>
 </div>
 
 <script>
-// ── MAP ────────────────────────────────────────────────────────────
-const map=L.map('map',{center:[57.990,12.509],zoom:13,zoomControl:false,attributionControl:false});
-const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{opacity:.45,maxZoom:19}).addTo(map);
-let osmOn=true;
+// ═══════════════════════════════════════════════════════════════════
+//  MAP
+// ═══════════════════════════════════════════════════════════════════
+const map = L.map('map', { center:[57.990,12.509], zoom:13,
+  zoomControl:false, attributionControl:false });
+const osmTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { opacity:.45, maxZoom:19 }).addTo(map);
+let osmOn = true;
 
-// ── CHARTS ─────────────────────────────────────────────────────────
-let charts=[];
+// ═══════════════════════════════════════════════════════════════════
+//  CHART REGISTRY
+// ═══════════════════════════════════════════════════════════════════
+const COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
+let charts = [];
 
-function lsKey(id){return `anten_chart_v1_${id}`;}
-function lsApp(){return 'anten_app_v1';}
+const lsKey  = id => `oc_chart_v1_${id}`;
+const lsApp  = ()  => 'oc_app_v1';
 
-function saveChart(c){
-  localStorage.setItem(lsKey(c.id),JSON.stringify({sw:c._sw,ne:c._ne,opacity:c._opacity,visible:c._visible}));
+function saveChart(c) {
+  localStorage.setItem(lsKey(c.id),
+    JSON.stringify({ sw:c._sw, ne:c._ne, opacity:c._opacity, visible:c._visible }));
 }
-function loadChart(c){
-  try{const s=JSON.parse(localStorage.getItem(lsKey(c.id)));
-    if(s){c._sw=s.sw??c._sw;c._ne=s.ne??c._ne;c._opacity=s.opacity??c._opacity;c._visible=s.visible??c._visible;}}
-  catch(e){}
+function loadChart(c) {
+  try {
+    const s = JSON.parse(localStorage.getItem(lsKey(c.id)));
+    if (s) {
+      if (s.sw)      c._sw      = s.sw;
+      if (s.ne)      c._ne      = s.ne;
+      if (s.opacity != null) c._opacity = s.opacity;
+      if (s.visible != null) c._visible = s.visible;
+    }
+  } catch(e) {}
 }
-function saveApp(){localStorage.setItem(lsApp(),JSON.stringify({osmOn}));}
-function loadApp(){
-  try{const s=JSON.parse(localStorage.getItem(lsApp()));
-    if(s&&s.osmOn===false){osmOn=false;map.removeLayer(osm);document.getElementById('bosm').classList.remove('on');}}
-  catch(e){}
+function saveApp() {
+  localStorage.setItem(lsApp(), JSON.stringify({ osmOn }));
+}
+function loadApp() {
+  try {
+    const s = JSON.parse(localStorage.getItem(lsApp()));
+    if (s && s.osmOn === false) {
+      osmOn = false;
+      map.removeLayer(osmTile);
+      document.getElementById('btn-osm').classList.remove('on');
+    }
+  } catch(e) {}
 }
 
-async function initCharts(raw){
-  for(const r of raw){
-    const c={id:r.id,name:r.name,description:r.description||'',file:r.file,
-      defaultBounds:r.defaultBounds,
-      _sw:r.defaultBounds.sw.slice(),_ne:r.defaultBounds.ne.slice(),
-      _opacity:r.defaultOpacity??0.85,_visible:true,_layer:null,_status:'loading',_refs:[]};
-    loadChart(c); charts.push(c); fetchChart(c);
+async function initCharts(rawList) {
+  for (const r of rawList) {
+    const c = {
+      id:          r.id,
+      name:        r.name,
+      description: r.description || '',
+      file:        r.file,
+      defaultBounds: r.defaultBounds,
+      _sw:      r.defaultBounds.sw.slice(),
+      _ne:      r.defaultBounds.ne.slice(),
+      _opacity: r.defaultOpacity ?? 0.85,
+      _visible: true,
+      _layer:   null,
+      _status:  'loading',
+    };
+    loadChart(c);
+    charts.push(c);
+    fetchChart(c);
   }
   updateSub();
 }
 
-function fetchChart(c){
-  c._status='loading'; renderLayerBody();
-  const img=new Image();
-  img.onload=()=>{c._status='ok'; if(c._visible)addLayer(c); renderLayerBody();  updateSub(); fitAll();};
-  img.onerror=()=>{c._status='error'; renderLayerBody();};
-  img.src=c.file;
+function fetchChart(c) {
+  c._status = 'loading';
+  const img = new Image();
+  img.onload = () => {
+    c._status = 'ok';
+    if (c._visible) addLayer(c);
+    updateSub();
+    updateOpRow();
+    renderLayerBody();
+    fitVisible();
+  };
+  img.onerror = () => { c._status = 'error'; renderLayerBody(); };
+  img.src = c.file;
 }
 
-function addLayer(c){
-  if(c._layer)map.removeLayer(c._layer);
-  c._layer=L.imageOverlay(c.file,[c._sw,c._ne],{opacity:c._opacity,interactive:false,zIndex:10+charts.indexOf(c)}).addTo(map);
-  if(osmOn)osm.bringToBack();
+function addLayer(c) {
+  if (c._layer) map.removeLayer(c._layer);
+  c._layer = L.imageOverlay(c.file, [c._sw, c._ne],
+    { opacity:c._opacity, interactive:false, zIndex:10+charts.indexOf(c) }
+  ).addTo(map);
+  if (osmOn) osmTile.bringToBack();
 }
-function removeLayer(c){if(c._layer){map.removeLayer(c._layer);c._layer=null;}}
-function rebuildLayer(c){
-  c._visible&&c._status==='ok'?addLayer(c):removeLayer(c);
-  if(osmOn)osm.bringToBack();
+function removeLayer(c) {
+  if (c._layer) { map.removeLayer(c._layer); c._layer = null; }
 }
-
-function updateSub(){
-  const v=charts.filter(c=>c._visible&&c._status==='ok');
-  document.getElementById('charts-sub').textContent=v.length?v.map(c=>c.name).join(' · '):'Inga sjökort aktiva';
-}
-
-function fitAll(){
-  const ok=charts.filter(c=>c._status==='ok');
-  if(!ok.length)return;
-  const b=ok.map(c=>L.latLngBounds(c._sw,c._ne)).reduce((a,b)=>a.extend(b));
-  map.fitBounds(b,{padding:[12,12]});
+function rebuildLayer(c) {
+  (c._visible && c._status === 'ok') ? addLayer(c) : removeLayer(c);
+  if (osmOn) osmTile.bringToBack();
 }
 
-// ── GPS ────────────────────────────────────────────────────────────
-let locMk=null,accC=null,firstFix=true;
-const locIcon=L.divIcon({className:'',html:'<div class="gps-dot"></div>',iconSize:[14,14],iconAnchor:[7,7]});
-function startGPS(){
-  if(!navigator.geolocation){pill('GPS saknas','err');return;}
-  pill('◎ Söker…','search');
-  navigator.geolocation.watchPosition(p=>{
-    const ll=L.latLng(p.coords.latitude,p.coords.longitude),a=p.coords.accuracy;
-    locMk?(locMk.setLatLng(ll),accC.setLatLng(ll).setRadius(a))
-         :(locMk=L.marker(ll,{icon:locIcon,zIndexOffset:999}).addTo(map),
-           accC=L.circle(ll,{radius:a,color:'#4ade80',fillColor:'#4ade80',fillOpacity:.07,weight:1,opacity:.4}).addTo(map));
-    document.getElementById('clat').textContent=dms(ll.lat,'N','S');
-    document.getElementById('clon').textContent=dms(ll.lng,'E','W');
-    if(firstFix){firstFix=false;map.setView(ll,14,{animate:true});}
-    pill('◎ GPS aktiv · ±'+(a<10?a.toFixed(1):Math.round(a))+'m','ok');
-    setTimeout(()=>{if(document.getElementById('gps-pill').classList.contains('ok'))
-      document.getElementById('gps-pill').style.opacity='0';},3500);
-  },e=>pill(['','Nekat','Ej tillgänglig','Timeout'][e.code]||'GPS-fel','err'),
-    {enableHighAccuracy:true,maximumAge:2000,timeout:15000});
+function updateSub() {
+  const vis = charts.filter(c => c._visible && c._status === 'ok');
+  document.getElementById('t-sub').textContent =
+    vis.length ? vis.map(c=>c.name).join(' · ') : 'Inga sjökort aktiva';
 }
-function pill(t,c){const e=document.getElementById('gps-pill');e.textContent=t;e.className=c;e.style.opacity='1';}
-function dms(v,p,n){const d=v>=0?p:n,a=Math.abs(v),g=Math.floor(a),m=((a-g)*60).toFixed(3);return g+'° '+m+'′ '+d;}
-function locateMe(){locMk?map.setView(locMk.getLatLng(),15,{animate:true}):startGPS();}
-function toggleOSM(){osmOn=!osmOn;osmOn?osm.addTo(map)&&osm.bringToBack():map.removeLayer(osm);
-  document.getElementById('bosm').classList.toggle('on',osmOn);saveApp();}
-map.on('click',e=>{if(pickState!=='idle')return;
-  L.popup({closeButton:false}).setLatLng(e.latlng)
-    .setContent(dms(e.latlng.lat,'N','S')+'<br>'+dms(e.latlng.lng,'E','W')).openOn(map);});
 
-// ── LAYER PANEL ────────────────────────────────────────────────────
-function openLayers(){renderLayerBody();document.getElementById('layer-panel').classList.add('open');}
-function closeLayers(){document.getElementById('layer-panel').classList.remove('open');}
+function fitVisible() {
+  const ok = charts.filter(c => c._status === 'ok');
+  if (!ok.length) return;
+  map.fitBounds(
+    ok.map(c => L.latLngBounds(c._sw, c._ne)).reduce((a,b) => a.extend(b)),
+    { padding:[12,12] }
+  );
+}
 
-function renderLayerBody(){
-  let h='<div class="sec">Sjökort</div>';
-  if(!charts.length){h+='<div class="info-box">Inga kartor i <code>charts.json</code></div>';}
-  charts.forEach((c,i)=>{
-    const stTxt={loading:'Laddar…',ok:'Inläst ✓',error:'Kunde inte laddas ✕'}[c._status];
-    const stCls={loading:'loading',ok:'ok',error:'err'}[c._status];
-    const op=Math.round(c._opacity*100);
-    h+=`<div class="chart-card">
-      <div class="cc-row">
-        <button class="cc-toggle ${c._visible&&c._status==='ok'?'on':''}" onclick="toggleChart(${i})" ${c._status!=='ok'?'disabled':''}></button>
-        <div><div class="cc-name">${c.name}</div><div class="cc-desc">${c.description}</div>
-          <div class="cc-status ${stCls}">${stTxt}</div></div>
-      </div>
-      ${c._status==='ok'?`
-      <div class="sr"><span class="sr-lbl">Opacitet</span>
-        <input type="range" min="0" max="100" value="${op}" oninput="setOp(${i},this.value,this.nextElementSibling)">
-        <span class="sr-val">${op}%</span></div>
-      <div class="cc-btns">
-        <button class="cc-btn calib" onclick="openCalibFor(${i})">⊕ Kalibrera</button>
-        <button class="cc-btn" onclick="fitChart(${i})">⛶ Passa</button>
-        ${i>0?`<button class="cc-btn" onclick="moveChart(${i},-1)">↑ Upp</button>`:''}
-        ${i<charts.length-1?`<button class="cc-btn" onclick="moveChart(${i},1)">↓ Ner</button>`:''}
-      </div>`:''}
-    </div>`;
+// ═══════════════════════════════════════════════════════════════════
+//  GPS
+// ═══════════════════════════════════════════════════════════════════
+let locMk = null, accCircle = null, firstFix = true;
+const locIcon = L.divIcon({ className:'',
+  html:'<div class="gps-dot"></div>', iconSize:[14,14], iconAnchor:[7,7] });
+
+function startGPS() {
+  if (!navigator.geolocation) { setPill('GPS saknas','err'); return; }
+  setPill('◎ Söker…','search');
+  navigator.geolocation.watchPosition(
+    p => {
+      const ll = L.latLng(p.coords.latitude, p.coords.longitude);
+      const a  = p.coords.accuracy;
+      locMk
+        ? (locMk.setLatLng(ll), accCircle.setLatLng(ll).setRadius(a))
+        : (locMk    = L.marker(ll, { icon:locIcon, zIndexOffset:999 }).addTo(map),
+           accCircle = L.circle(ll, { radius:a, color:'#4ade80', fillColor:'#4ade80',
+             fillOpacity:.07, weight:1, opacity:.4 }).addTo(map));
+      if (!fakePos) {
+        document.getElementById('t-lat').textContent = dms(ll.lat,'N','S');
+        document.getElementById('t-lon').textContent = dms(ll.lng,'E','W');
+      }
+      if (firstFix) { firstFix=false; map.setView(ll,14,{animate:true}); }
+      const as = a < 10 ? a.toFixed(1)+'m' : Math.round(a)+'m';
+      setPill('◎ GPS aktiv · ±'+as,'ok');
+      setTimeout(() => {
+        if (document.getElementById('gps-pill').classList.contains('ok'))
+          document.getElementById('gps-pill').style.opacity = '0';
+      }, 3500);
+    },
+    e => setPill(['','Nekat','Ej tillgänglig','Timeout'][e.code]||'GPS-fel','err'),
+    { enableHighAccuracy:true, maximumAge:2000, timeout:15000 }
+  );
+}
+function setPill(t,c) {
+  const e = document.getElementById('gps-pill');
+  e.textContent=t; e.className=c; e.style.opacity='1';
+}
+function dms(v,p,n) {
+  const d=v>=0?p:n, a=Math.abs(v), g=Math.floor(a), m=((a-g)*60).toFixed(3);
+  return g+'° '+m+'′ '+d;
+}
+function locateMe() {
+  locMk ? map.setView(locMk.getLatLng(),15,{animate:true}) : startGPS();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+function toggleOSM() {
+  osmOn = !osmOn;
+  osmOn ? osmTile.addTo(map)&&osmTile.bringToBack() : map.removeLayer(osmTile);
+  document.getElementById('btn-osm').classList.toggle('on', osmOn);
+  saveApp();
+}
+
+map.on('click', e => {
+  if (pickState !== 'idle') return;
+  if (fakeOn) { setFake(e.latlng.lat, e.latlng.lng); return; }
+  L.popup({ closeButton:false }).setLatLng(e.latlng)
+    .setContent(dms(e.latlng.lat,'N','S')+'<br>'+dms(e.latlng.lng,'E','W'))
+    .openOn(map);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  OPACITY ROW — controls the chart you're most over
+// ═══════════════════════════════════════════════════════════════════
+function getActiveIdx() {
+  const ref = fakePos || map.getCenter();
+  const lat = ref.lat, lng = ref.lng;
+  const ok  = charts.map((c,i)=>({c,i})).filter(({c})=>c._visible&&c._status==='ok');
+  if (!ok.length) return -1;
+  const over = ok.filter(({c}) =>
+    lat>=c._sw[0]&&lat<=c._ne[0]&&lng>=c._sw[1]&&lng<=c._ne[1]);
+  const pool = over.length ? over : ok;
+  pool.sort((a,b) => {
+    const dist = x => Math.hypot(lat-(x._sw[0]+x._ne[0])/2, lng-(x._sw[1]+x._ne[1])/2);
+    return dist(a.c)-dist(b.c);
   });
-  h+=`<div class="sec">Kalibreringsstatus</div>`;
-  h+=`<div class="info-box" id="calib-status-box">${calibStatusHtml()}</div>`;
-  h+=`<div class="sec">Lägg till fler kartor</div>
-  <div class="info-box">
-    Lägg till direkt i GitHub-repot:<br><br>
-    1. Lägg bilden i <code>charts/minbild.jpg</code><br>
-    2. Lägg till en rad i <code>charts.json</code><br>
-    3. Appen plockar upp den vid nästa laddning
-  </div>`;
-  document.getElementById('layer-body').innerHTML=h;
+  return pool[0].i;
 }
 
-function toggleChart(i){const c=charts[i];c._visible=!c._visible;rebuildLayer(c);saveChart(c);renderLayerBody();updateActiveOp();updateSub();}
-function setOp(i,v,lbl){const c=charts[i];c._opacity=v/100;if(c._layer)c._layer.setOpacity(c._opacity);if(lbl)lbl.textContent=v+'%';saveChart(c);}
-function fitChart(i){map.fitBounds([charts[i]._sw,charts[i]._ne],{padding:[16,16]});closeLayers();}
-function moveChart(i,d){const j=i+d;if(j<0||j>=charts.length)return;[charts[i],charts[j]]=[charts[j],charts[i]];charts.forEach(rebuildLayer);renderLayerBody();}
+function updateOpRow() {
+  const idx  = getActiveIdx();
+  const sl   = document.getElementById('op-slider');
+  const dot  = document.getElementById('or-dot');
+  const name = document.getElementById('or-name');
+  const pct  = document.getElementById('or-pct');
+  if (idx < 0) {
+    sl.disabled = true;
+    dot.style.background = 'rgba(255,255,255,.2)';
+    name.textContent = 'Ingen karta';
+    return;
+  }
+  const c = charts[idx], color = COLORS[idx % COLORS.length];
+  sl.disabled = false;
+  dot.style.background = color;
+  name.textContent = c.name;
+  const v = Math.round(c._opacity*100);
+  sl.value = v;
+  pct.textContent = v+'%';
+}
 
-// ── CALIBRATION ────────────────────────────────────────────────────
-let calibIdx=-1,pickState='idle',refs=[],tempImgX,tempImgY,tempLat,tempLng,tempPin,confirmedPins=[];
-const ipIcon=n=>L.divIcon({className:'',html:`<div class="cpin cpin-img">${n}</div>`,iconSize:[28,28],iconAnchor:[14,14]});
-const opIcon=n=>L.divIcon({className:'',html:`<div class="cpin cpin-osm">${n}</div>`,iconSize:[28,28],iconAnchor:[14,14]});
-const xIcon=L.divIcon({className:'',html:'<div class="crosshair"></div>',iconSize:[28,28],iconAnchor:[14,14]});
+function opSlide(el) {
+  const idx = getActiveIdx();
+  if (idx < 0) return;
+  const c = charts[idx], v = +el.value;
+  c._opacity = v/100;
+  if (c._layer) c._layer.setOpacity(c._opacity);
+  document.getElementById('or-pct').textContent = v+'%';
+  saveChart(c);
+  if (document.getElementById('layer-panel').classList.contains('open')) renderLayerBody();
+}
 
-function openCalibFor(i){
-  calibIdx=i;refs=[];confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];
-  closeLayers();renderCalibBody();
-  document.getElementById('calib-name').textContent=charts[i].name;
+map.on('moveend', updateOpRow);
+
+// ═══════════════════════════════════════════════════════════════════
+//  FAKE POSITION
+// ═══════════════════════════════════════════════════════════════════
+let fakeOn  = false;   // picking mode
+let fakePos = null;    // { lat, lng }
+let fakeMk  = null;
+const fakePinIcon = L.divIcon({
+  className:'', html:'<div class="fake-pin"></div>',
+  iconSize:[14,14], iconAnchor:[7,7]
+});
+
+function toggleFake() {
+  fakeOn = !fakeOn;
+  const btn = document.getElementById('btn-fake');
+  btn.classList.toggle('pick', fakeOn);
+  btn.textContent = fakeOn ? '📍 Klicka…' : (fakePos ? '📍 Aktiv' : '📍 Testa');
+}
+
+function setFake(lat, lng) {
+  fakePos = { lat, lng }; fakeOn = false;
+  const ll = L.latLng(lat, lng);
+  fakeMk ? fakeMk.setLatLng(ll)
+         : (fakeMk = L.marker(ll,{icon:fakePinIcon,zIndexOffset:998}).addTo(map));
+  document.getElementById('fc-lat').textContent = dms(lat,'N','S');
+  document.getElementById('fc-lon').textContent = dms(lng,'E','W');
+  document.getElementById('fake-card').classList.add('visible');
+  document.getElementById('t-lat').textContent = dms(lat,'N','S');
+  document.getElementById('t-lon').textContent = dms(lng,'E','W');
+  const btn = document.getElementById('btn-fake');
+  btn.classList.remove('pick'); btn.classList.add('active');
+  btn.textContent = '📍 Aktiv';
+  updateOpRow();
+}
+
+function clearFake() {
+  fakePos = null; fakeOn = false;
+  if (fakeMk) { map.removeLayer(fakeMk); fakeMk = null; }
+  document.getElementById('fake-card').classList.remove('visible');
+  const btn = document.getElementById('btn-fake');
+  btn.classList.remove('pick','active'); btn.textContent = '📍 Testa';
+  if (locMk) {
+    const ll = locMk.getLatLng();
+    document.getElementById('t-lat').textContent = dms(ll.lat,'N','S');
+    document.getElementById('t-lon').textContent = dms(ll.lng,'E','W');
+  } else {
+    document.getElementById('t-lat').textContent = '–';
+    document.getElementById('t-lon').textContent = '–';
+  }
+  updateOpRow();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  FULLSCREEN
+// ═══════════════════════════════════════════════════════════════════
+function toggleFS() {
+  const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  isFS
+    ? (document.exitFullscreen||document.webkitExitFullscreen||(_=>{})).call(document)
+    : (document.documentElement.requestFullscreen||
+       document.documentElement.webkitRequestFullscreen||(_=>{})).call(document.documentElement);
+}
+document.addEventListener('fullscreenchange', () => {
+  document.getElementById('btn-fs').textContent =
+    document.fullscreenElement ? '✕ Fullskärm' : '⛶ Fullskärm';
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  LAYER PANEL
+// ═══════════════════════════════════════════════════════════════════
+function openLayers()  { renderLayerBody(); document.getElementById('layer-panel').classList.add('open'); }
+function closeLayers() { document.getElementById('layer-panel').classList.remove('open'); }
+
+function renderLayerBody() {
+  let h = '<div class="sec">Sjökort</div>';
+  if (!charts.length) {
+    h += '<div class="info-box">Inga kartor i <code>charts.json</code></div>';
+  } else {
+    charts.forEach((c,i) => {
+      const stTxt = { loading:'Laddar…', ok:'Inläst ✓', error:'Kunde inte laddas ✕' }[c._status];
+      const stCls = { loading:'loading', ok:'ok', error:'err' }[c._status];
+      const op = Math.round(c._opacity*100);
+      h += `<div class="cc">
+        <div class="cc-row">
+          <button class="cc-tog ${c._visible&&c._status==='ok'?'on':''}"
+            onclick="toggleChart(${i})" ${c._status!=='ok'?'disabled':''}></button>
+          <div><div class="cc-name">${c.name}</div>
+          <div class="cc-desc">${c.description}</div>
+          <div class="cc-st ${stCls}">${stTxt}</div></div>
+        </div>
+        ${c._status==='ok'?`
+        <div class="cc-sl-row">
+          <span class="cc-sl-lbl">Opacitet</span>
+          <input class="cc-sl" type="range" min="0" max="100" value="${op}"
+            oninput="setChartOp(${i},this.value,this.nextElementSibling)">
+          <span class="cc-sl-val">${op}%</span>
+        </div>
+        <div class="cc-btns">
+          <button class="cc-btn calib" onclick="openCalib(${i})">⊕ Kalibrera</button>
+          <button class="cc-btn" onclick="fitChart(${i})">⛶ Passa</button>
+          ${i>0?`<button class="cc-btn" onclick="moveChart(${i},-1)">↑</button>`:''}
+          ${i<charts.length-1?`<button class="cc-btn" onclick="moveChart(${i},1)">↓</button>`:''}
+        </div>`:''}
+      </div>`;
+    });
+  }
+  h += `<div class="sec">Lägg till fler kartor</div>
+  <div class="info-box">
+    Lägg till direkt i GitHub:<br><br>
+    1. Lägg bilden i <code>charts/</code><br>
+    2. Lägg till en rad i <code>charts.json</code><br>
+    3. Appen laddar den automatiskt
+  </div>`;
+  document.getElementById('layer-body').innerHTML = h;
+}
+
+function toggleChart(i) {
+  const c=charts[i]; c._visible=!c._visible;
+  rebuildLayer(c); saveChart(c); renderLayerBody(); updateOpRow(); updateSub();
+}
+function setChartOp(i,v,lbl) {
+  const c=charts[i]; c._opacity=v/100;
+  if(c._layer) c._layer.setOpacity(c._opacity);
+  if(lbl) lbl.textContent=v+'%';
+  saveChart(c);
+  updateOpRow();
+}
+function fitChart(i) { map.fitBounds([charts[i]._sw,charts[i]._ne],{padding:[16,16]}); closeLayers(); }
+function moveChart(i,d) {
+  const j=i+d; if(j<0||j>=charts.length) return;
+  [charts[i],charts[j]]=[charts[j],charts[i]];
+  charts.forEach(rebuildLayer); renderLayerBody();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CALIBRATION
+// ═══════════════════════════════════════════════════════════════════
+let calibIdx = -1;
+let pickState = 'idle';
+let refs = [], tempIX, tempIY, tempLat, tempLng, tempPin, cPins = [];
+
+const ipIcon = n => L.divIcon({className:'',html:`<div class="cpin cpin-img">${n}</div>`,iconSize:[28,28],iconAnchor:[14,14]});
+const opIcon = n => L.divIcon({className:'',html:`<div class="cpin cpin-osm">${n}</div>`,iconSize:[28,28],iconAnchor:[14,14]});
+const xIcon  = L.divIcon({className:'',html:'<div class="xhair"></div>',iconSize:[28,28],iconAnchor:[14,14]});
+
+function openCalib(i) {
+  calibIdx=i; refs=[]; cPins.forEach(p=>map.removeLayer(p)); cPins=[];
+  closeLayers();
+  document.getElementById('calib-name').textContent = charts[i].name;
+  renderCalibBody();
   document.getElementById('calib-panel').classList.add('open');
 }
-function closeCalib(){document.getElementById('calib-panel').classList.remove('open');}
+function closeCalib() { document.getElementById('calib-panel').classList.remove('open'); }
 
-function renderCalibBody(){
-  const c=charts[calibIdx],n=refs.length;
+function renderCalibBody() {
+  const c=charts[calibIdx], n=refs.length;
   let h='';
   if(n>0){
     h+='<div class="sec">Tillagda punkter</div>';
-    refs.forEach((r,i)=>{h+=`<div class="pt-card">
+    refs.forEach((r,i)=>{ h+=`<div class="pt-card">
       <div class="pt-num">${i+1}</div>
       <div class="pt-info"><strong>Punkt ${i+1}</strong><br>
         Sjökort: ${(r.imgX*100).toFixed(1)}% X · ${(r.imgY*100).toFixed(1)}% Y<br>
         ${dms(r.lat,'N','S')}<br>${dms(r.lng,'E','W')}</div>
-      <button class="pt-del" onclick="delRef(${i})">✕</button></div>`;});
-    if(n>=2){const nb=calcBounds(c),rms=calcRMS(refs,nb);
-      h+=`<div class="rms-row ${rms<50?'rms-good':'rms-warn'}">⊙ Medelfel: ${rms<10?rms.toFixed(1):Math.round(rms)} m (${n} punkter)</div>`;}
+      <button class="pt-del" onclick="delRef(${i})">✕</button></div>`; });
+    if(n>=2){
+      const nb=calcBounds(c), rms=calcRMS(refs,nb);
+      h+=`<div class="${rms<50?'rms-good':'rms-warn'}">⊙ Medelfel: ${rms<10?rms.toFixed(1):Math.round(rms)} m (${n} punkter)</div>`;
+    }
   }
-  h+=`<button class="add-btn" onclick="startPick()">+ Lägg till punkt ${n+1}</button>`;
-  h+=`<div class="sec">Förinställningar</div>`;
-  const db=c.defaultBounds;
-  h+=`<button class="preset" onclick='applyPreset(${JSON.stringify(db.sw)},${JSON.stringify(db.ne)})'><strong>Återställ standard</strong><br><small>SW ${db.sw} · NE ${db.ne}</small></button>`;
-  document.getElementById('calib-body').innerHTML=h;
+  h+=`<button class="add-btn" onclick="startPick()">+ Lägg till punkt ${n+1}</button>
+  <div class="sec">Förinställningar</div>`;
+  const db = charts[calibIdx].defaultBounds;
+  h+=`<button class="preset" onclick='applyPreset(${JSON.stringify(db.sw)},${JSON.stringify(db.ne)})'><strong>Återställ standard</strong><br><small>SW ${db.sw.map(v=>v.toFixed(3)).join(', ')} · NE ${db.ne.map(v=>v.toFixed(3)).join(', ')}</small></button>`;
+  document.getElementById('calib-body').innerHTML = h;
   const ab=document.getElementById('apply-btn');
-  if(n>=2){ab.style.display='';ab.textContent=`✓ Tillämpa (${n} punkter)`;}else ab.style.display='none';
+  if(n>=2){ab.style.display='';ab.textContent=`✓ Tillämpa (${n} punkter)`;}
+  else ab.style.display='none';
 }
 
-function startPick(){
+function startPick() {
   document.getElementById('calib-panel').classList.remove('open');
   document.getElementById('bottom').classList.add('hidden');
-  document.getElementById('active-op').classList.add('hidden');
-  const c=charts[calibIdx];
-  if(c._layer)c._layer.setOpacity(.90);
-  if(!osmOn)osm.addTo(map); osm.bringToBack();
-  const pn=refs.length+1;
+  const c=charts[calibIdx], pn=refs.length+1;
+  if(c._layer) c._layer.setOpacity(.90);
+  if(!osmOn) osmTile.addTo(map); osmTile.bringToBack();
   document.getElementById('pb-badge').textContent=`PUNKT ${pn} · STEG 1/2`;
   document.getElementById('pb-badge').className='pb-badge badge-img';
   document.getElementById('pb-title').textContent='Tryck på sjökortet vid en känd plats';
-  document.getElementById('pb-hint').textContent='T.ex. brygga, udde eller ö du känner igen på båda kartorna';
+  document.getElementById('pb-hint').textContent='T.ex. brygga, udde eller ö du känner igen';
   document.getElementById('pick-banner').classList.add('visible');
-  pickState='picking-img'; map.on('click',onMapClick);
+  pickState='picking-img'; map.on('click', onPickClick);
 }
 
-function onMapClick(e){
-  const ll=e.latlng,c=charts[calibIdx];
+function onPickClick(e) {
+  const ll=e.latlng, c=charts[calibIdx];
   if(pickState==='picking-img'||pickState==='img-pending'){
-    if(tempPin)map.removeLayer(tempPin);
+    if(tempPin) map.removeLayer(tempPin);
     tempPin=L.marker(ll,{icon:xIcon,zIndexOffset:2000}).addTo(map);
-    tempImgX=Math.max(0,Math.min(1,(ll.lng-c._sw[1])/(c._ne[1]-c._sw[1])));
-    tempImgY=Math.max(0,Math.min(1,(c._ne[0]-ll.lat)/(c._ne[0]-c._sw[0])));
+    tempIX=Math.max(0,Math.min(1,(ll.lng-c._sw[1])/(c._ne[1]-c._sw[1])));
+    tempIY=Math.max(0,Math.min(1,(c._ne[0]-ll.lat)/(c._ne[0]-c._sw[0])));
     const pn=refs.length+1;
-    document.getElementById('ci').innerHTML=`<strong>Punkt ${pn} – Sjökortsposition vald</strong><br>
-      Bild ${(tempImgX*100).toFixed(1)}% X · ${(tempImgY*100).toFixed(1)}% Y<br>Bekräfta eller tryck på en annan plats.`;
+    document.getElementById('ci').innerHTML=
+      `<strong>Punkt ${pn} – Sjökortsposition</strong><br>`+
+      `${(tempIX*100).toFixed(1)}% X · ${(tempIY*100).toFixed(1)}% Y<br>Bekräfta eller tryck på ny plats.`;
     document.getElementById('confirm-bar').classList.add('visible');
     pickState='img-pending'; return;
   }
   if(pickState==='picking-osm'||pickState==='osm-pending'){
-    if(tempPin)map.removeLayer(tempPin);
+    if(tempPin) map.removeLayer(tempPin);
     tempPin=L.marker(ll,{icon:xIcon,zIndexOffset:2000}).addTo(map);
-    tempLat=ll.lat;tempLng=ll.lng;
+    tempLat=ll.lat; tempLng=ll.lng;
     const pn=refs.length+1;
-    document.getElementById('ci').innerHTML=`<strong>Punkt ${pn} – OSM-position vald</strong><br>
-      ${dms(tempLat,'N','S')}<br>${dms(tempLng,'E','W')}<br>Bekräfta eller tryck på en annan plats.`;
+    document.getElementById('ci').innerHTML=
+      `<strong>Punkt ${pn} – OSM-position</strong><br>`+
+      dms(tempLat,'N','S')+'<br>'+dms(tempLng,'E','W')+'<br>Bekräfta eller tryck på ny plats.';
     document.getElementById('confirm-bar').classList.add('visible');
     pickState='osm-pending';
   }
 }
 
-function confirmPick(){
-  const c=charts[calibIdx],pn=refs.length+1;
+function confirmPick() {
+  const c=charts[calibIdx], pn=refs.length+1;
   if(pickState==='img-pending'){
     document.getElementById('confirm-bar').classList.remove('visible');
-    if(c._layer)c._layer.setOpacity(.15);
-    if(!osmOn)osm.addTo(map); osm.bringToBack();
-    if(tempPin)map.removeLayer(tempPin);
-    confirmedPins.push(L.marker(L.latLng(c._ne[0]-tempImgY*(c._ne[0]-c._sw[0]),c._sw[1]+tempImgX*(c._ne[1]-c._sw[1])),
+    if(c._layer) c._layer.setOpacity(.15);
+    if(!osmOn) osmTile.addTo(map); osmTile.bringToBack();
+    if(tempPin) map.removeLayer(tempPin);
+    cPins.push(L.marker(
+      L.latLng(c._ne[0]-tempIY*(c._ne[0]-c._sw[0]), c._sw[1]+tempIX*(c._ne[1]-c._sw[1])),
       {icon:ipIcon(pn),zIndexOffset:1500}).addTo(map));
     tempPin=null;
     document.getElementById('pb-badge').textContent=`PUNKT ${pn} · STEG 2/2`;
@@ -496,494 +826,140 @@ function confirmPick(){
   if(pickState==='osm-pending'){
     document.getElementById('confirm-bar').classList.remove('visible');
     document.getElementById('pick-banner').classList.remove('visible');
-    map.off('click',onMapClick);
-    if(tempPin)map.removeLayer(tempPin);
-    confirmedPins.push(L.marker(L.latLng(tempLat,tempLng),{icon:opIcon(pn),zIndexOffset:1500}).addTo(map));
-    refs.push({imgX:tempImgX,imgY:tempImgY,lat:tempLat,lng:tempLng});
-    tempImgX=tempImgY=tempLat=tempLng=null;tempPin=null;pickState='idle';
-    if(c._layer)c._layer.setOpacity(c._opacity);
-    if(!osmOn)map.removeLayer(osm);
+    map.off('click', onPickClick);
+    if(tempPin) map.removeLayer(tempPin);
+    cPins.push(L.marker(L.latLng(tempLat,tempLng),{icon:opIcon(pn),zIndexOffset:1500}).addTo(map));
+    refs.push({imgX:tempIX,imgY:tempIY,lat:tempLat,lng:tempLng});
+    tempIX=tempIY=tempLat=tempLng=null; tempPin=null; pickState='idle';
+    if(c._layer) c._layer.setOpacity(c._opacity);
+    if(!osmOn) map.removeLayer(osmTile);
     document.getElementById('bottom').classList.remove('hidden');
-  updateActiveOp();
     document.getElementById('calib-panel').classList.add('open');
     renderCalibBody();
   }
 }
 
-function retryPick(){
+function retryPick() {
   document.getElementById('confirm-bar').classList.remove('visible');
   if(tempPin){map.removeLayer(tempPin);tempPin=null;}
-  if(pickState==='img-pending')pickState='picking-img';
-  if(pickState==='osm-pending')pickState='picking-osm';
+  if(pickState==='img-pending') pickState='picking-img';
+  if(pickState==='osm-pending') pickState='picking-osm';
 }
 
-function cancelPick(){
+function cancelPick() {
   document.getElementById('pick-banner').classList.remove('visible');
   document.getElementById('confirm-bar').classList.remove('visible');
-  map.off('click',onMapClick);
+  map.off('click', onPickClick);
   if(tempPin){map.removeLayer(tempPin);tempPin=null;}
-  if(pickState==='picking-osm'||pickState==='osm-pending'){const l=confirmedPins.pop();if(l)map.removeLayer(l);}
+  if(pickState==='picking-osm'||pickState==='osm-pending'){
+    const l=cPins.pop(); if(l) map.removeLayer(l);}
   pickState='idle';
   const c=charts[calibIdx];
-  if(c?._layer)c._layer.setOpacity(c._opacity);
-  if(!osmOn)map.removeLayer(osm);else osm.bringToBack();
+  if(c?._layer) c._layer.setOpacity(c._opacity);
+  if(!osmOn) map.removeLayer(osmTile); else osmTile.bringToBack();
   document.getElementById('bottom').classList.remove('hidden');
-  updateActiveOp();
   document.getElementById('calib-panel').classList.add('open');
   renderCalibBody();
 }
 
-function delRef(i){
+function delRef(i) {
   refs.splice(i,1);
-  for(let j=i*2;j<i*2+2&&j<confirmedPins.length;j++){if(confirmedPins[j])map.removeLayer(confirmedPins[j]);}
-  confirmedPins.splice(i*2,2);
-  confirmedPins.forEach((p,idx)=>p.setIcon(idx%2===1?opIcon(Math.floor(idx/2)+1):ipIcon(Math.floor(idx/2)+1)));
+  for(let j=i*2;j<i*2+2&&j<cPins.length;j++){if(cPins[j])map.removeLayer(cPins[j]);}
+  cPins.splice(i*2,2);
+  cPins.forEach((p,idx)=>p.setIcon(idx%2===1?opIcon(Math.floor(idx/2)+1):ipIcon(Math.floor(idx/2)+1)));
   renderCalibBody();
 }
 
-function calcBounds(c){
-  const n=refs.length;if(n<2)return[c._sw,c._ne];
-  const sX=refs.reduce((s,p)=>s+p.imgX,0),sX2=refs.reduce((s,p)=>s+p.imgX**2,0);
-  const sL=refs.reduce((s,p)=>s+p.lng,0),sLX=refs.reduce((s,p)=>s+p.lng*p.imgX,0);
-  const dX=n*sX2-sX**2;const swL=(sL*sX2-sX*sLX)/dX,neL=swL+(n*sLX-sX*sL)/dX;
-  const sY=refs.reduce((s,p)=>s+p.imgY,0),sY2=refs.reduce((s,p)=>s+p.imgY**2,0);
-  const sT=refs.reduce((s,p)=>s+p.lat,0),sTY=refs.reduce((s,p)=>s+p.lat*p.imgY,0);
-  const dY=n*sY2-sY**2;const latR=(sT*sY-n*sTY)/dY,neT=(sT+latR*sY)/n;
-  return[[neT-latR,swL],[neT,neL]];
+function calcBounds(c) {
+  const n=refs.length; if(n<2) return [c._sw,c._ne];
+  const sX=refs.reduce((s,p)=>s+p.imgX,0), sX2=refs.reduce((s,p)=>s+p.imgX**2,0);
+  const sL=refs.reduce((s,p)=>s+p.lng,0),  sLX=refs.reduce((s,p)=>s+p.lng*p.imgX,0);
+  const dX=n*sX2-sX**2;
+  const swL=(sL*sX2-sX*sLX)/dX, neL=swL+(n*sLX-sX*sL)/dX;
+  const sY=refs.reduce((s,p)=>s+p.imgY,0), sY2=refs.reduce((s,p)=>s+p.imgY**2,0);
+  const sT=refs.reduce((s,p)=>s+p.lat,0),  sTY=refs.reduce((s,p)=>s+p.lat*p.imgY,0);
+  const dY=n*sY2-sY**2;
+  const latR=(sT*sY-n*sTY)/dY, neT=(sT+latR*sY)/n;
+  return [[neT-latR,swL],[neT,neL]];
 }
-function calcRMS(pts,b){
-  let s=0;pts.forEach(p=>{const pL=b[1][0]-p.imgY*(b[1][0]-b[0][0]),pG=b[0][1]+p.imgX*(b[1][1]-b[0][1]);
+function calcRMS(pts,b) {
+  let s=0; pts.forEach(p=>{
+    const pL=b[1][0]-p.imgY*(b[1][0]-b[0][0]), pG=b[0][1]+p.imgX*(b[1][1]-b[0][1]);
     s+=(pL-p.lat)**2*111200**2+(pG-p.lng)**2*(111200*Math.cos(p.lat*Math.PI/180))**2;});
   return Math.sqrt(s/pts.length);
 }
 
-function applyCalib(){
-  const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
-  rebuildLayer(c);saveChart(c);
-  confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
-  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});updateOpRow();
-  updateActiveOp();
-}
-function applyCalib_inner(){
-  const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
-  rebuildLayer(c);saveChart(c);
-  confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
-  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});updateOpRow();
-  updateActiveOp();
-  renderQuickOp();
-}
-function _applyCalib_orig(){
-  const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
-  rebuildLayer(c);saveChart(c);
-  confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
-  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});updateOpRow();
-  updateActiveOp();
-}
-function applyPreset(sw,ne){const c=charts[calibIdx];c._sw=sw;c._ne=ne;rebuildLayer(c);saveChart(c);closeCalib();}
-
-
-
-
-// ── ACTIVE CHART OPACITY CONTROL ─────────────────────────────────
-const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
-let _activeChartIdx = -1;
-
-function getActiveChartIdx() {
-  const ep = effectivePos();
-  const lat = ep ? ep.lat : map.getCenter().lat;
-  const lng = ep ? ep.lng : map.getCenter().lng;
-  const ok = charts.map((ch, i) => ({ch, i}))
-    .filter(({ch}) => ch._visible && ch._status === 'ok');
-  if (!ok.length) return -1;
-  // Prefer charts that contain the point; else closest center
-  const covering = ok.filter(({ch}) =>
-    lat >= ch._sw[0] && lat <= ch._ne[0] &&
-    lng >= ch._sw[1] && lng <= ch._ne[1]);
-  const pool = covering.length ? covering : ok;
-  pool.sort((a, b) => {
-    const d = ch => Math.hypot(
-      lat - (ch._sw[0]+ch._ne[0])/2,
-      lng - (ch._sw[1]+ch._ne[1])/2
-    );
-    return d(a.ch) - d(b.ch);
-  });
-  return pool[0].i;
+function applyCalib() {
+  const c=charts[calibIdx], nb=calcBounds(c);
+  c._sw=nb[0]; c._ne=nb[1];
+  rebuildLayer(c); saveChart(c);
+  cPins.forEach(p=>map.removeLayer(p)); cPins=[]; refs=[];
+  updateOpRow(); closeCalib();
+  map.fitBounds([c._sw,c._ne],{padding:[16,16]});
 }
 
-let _aoTimer = null;
-function updateActiveOp() {
-  clearTimeout(_aoTimer);
-  _aoTimer = setTimeout(_doUpdateActiveOp, 80);
-}
-function _doUpdateActiveOp() {
-  const idx = getActiveChartIdx();
-  const el = document.getElementById('active-op');
-  if (idx < 0) { el.classList.add('hidden'); return; }
-  el.classList.remove('hidden');
-  const c = charts[idx];
-  const color = CHART_COLORS[idx % CHART_COLORS.length];
-  document.getElementById('ao-dot').style.background = color;
-  document.getElementById('ao-name').textContent = c.name;
-  const pct = Math.round(c._opacity * 100);
-  document.getElementById('ao-slider').value = pct;
-  document.getElementById('ao-pct').textContent = pct + '%';
-  if (_activeChartIdx !== idx) {
-    _activeChartIdx = idx;
-  }
+function applyPreset(sw,ne) {
+  const c=charts[calibIdx]; c._sw=sw; c._ne=ne;
+  rebuildLayer(c); saveChart(c); updateOpRow(); closeCalib();
 }
 
-function aoSlide(val) {
-  const idx = getActiveChartIdx();
-  if (idx < 0) return;
-  const c = charts[idx];
-  c._opacity = val / 100;
-  if (c._layer) c._layer.setOpacity(c._opacity);
-  document.getElementById('ao-pct').textContent = val + '%';
-  saveChart(c);
-  const panelOpen = document.getElementById('layer-panel').classList.contains('open');
-  if (panelOpen) renderLayerBody();
-}
-
-map.on('moveend', updateActiveOp);
-
-// ── FULLSCREEN ────────────────────────────────────────────────────
-function toggleFS() {
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    (document.documentElement.requestFullscreen ||
-     document.documentElement.webkitRequestFullscreen ||
-     (() => {})).call(document.documentElement);
-    document.getElementById('btn-fs').textContent = '✕ Helskärm';
-  } else {
-    (document.exitFullscreen || document.webkitExitFullscreen ||
-     (() => {})).call(document);
-    document.getElementById('btn-fs').textContent = '⛶ Fullskärm';
-  }
-}
-document.addEventListener('fullscreenchange', () => {
-  const inFS = !!document.fullscreenElement;
-  document.getElementById('btn-fs').textContent = inFS ? '✕ Helskärm' : '⛶ Fullskärm';
-});
-
-
-// ── FAKE POSITION ─────────────────────────────────────────────────
-let fakeMode  = false;   // picking mode — next map click sets position
-let fakePos   = null;    // { lat, lng } or null
-let fakeMk    = null;    // leaflet marker
-
-const fakePinIcon = L.divIcon({
-  className: '',
-  html: '<div class="fake-pin"></div>',
-  iconSize: [14,14], iconAnchor: [7,7]
-});
-
-function toggleFakeMode() {
-  if (fakeMode) {
-    // Second tap cancels picking without clearing existing fake pos
-    fakeMode = false;
-    updateFakeBtn();
-    return;
-  }
-  fakeMode = true;
-  updateFakeBtn();
-}
-
-function updateFakeBtn() {
-  const btn = document.getElementById('btn-fake');
-  if (!btn) return;
-  btn.classList.remove('active','picking');
-  if (fakePos)  btn.classList.add('active');
-  if (fakeMode) btn.classList.add('picking');
-  btn.textContent = fakeMode ? '📍 Klicka…' : (fakePos ? '📍 Aktiv' : '📍 Testa');
-}
-
-function setFakePos(lat, lng) {
-  fakePos  = { lat, lng };
-  fakeMode = false;
-
-  // Place/move marker
-  const ll = L.latLng(lat, lng);
-  if (fakeMk) {
-    fakeMk.setLatLng(ll);
-  } else {
-    fakeMk = L.marker(ll, { icon: fakePinIcon, zIndexOffset: 998 }).addTo(map);
-  }
-
-  // Update card
-  document.getElementById('fc-lat').textContent = dms(lat,'N','S');
-  document.getElementById('fc-lon').textContent = dms(lng,'E','W');
-  document.getElementById('fake-card').classList.add('visible');
-
-  // Update coord display & active chart
-  document.getElementById('clat').textContent = dms(lat,'N','S');
-  document.getElementById('clon').textContent = dms(lng,'E','W');
-  updateActiveOp();
-  updateFakeBtn();
-}
-
-function clearFakePos() {
-  fakePos  = null;
-  fakeMode = false;
-  if (fakeMk) { map.removeLayer(fakeMk); fakeMk = null; }
-  document.getElementById('fake-card').classList.remove('visible');
-
-  // Restore real GPS coords if available
-  if (locMk) {
-    const ll = locMk.getLatLng();
-    if (!fakePos) {
-      document.getElementById('clat').textContent = dms(ll.lat,'N','S');
-      document.getElementById('clon').textContent = dms(ll.lng,'E','W');
-    }
-  } else {
-    document.getElementById('clat').textContent = '–';
-    document.getElementById('clon').textContent = '–';
-  }
-  updateActiveOp();
-  updateFakeBtn();
-}
-
-// Helper: returns the "effective" position (fake or real GPS)
-function effectivePos() {
-  if (fakePos) return fakePos;
-  if (locMk)   return locMk.getLatLng();
-  return null;
-}
-
-
-// ── CHART COLORS ──────────────────────────────────────────────────
-const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
-
-// ── ACTIVE CHART + OPACITY ROW ────────────────────────────────────
-function getActiveChartIdx() {
-  // Use fake position if set, otherwise map center
-  const ref = fakePos || map.getCenter();
-  const lat = ref.lat ?? ref, lng = ref.lng ?? ref;
-  const ok = charts.map((c,i)=>({c,i})).filter(({c})=>c._visible && c._status==='ok');
-  if (!ok.length) return -1;
-  const covering = ok.filter(({c}) =>
-    lat>=c._sw[0] && lat<=c._ne[0] && lng>=c._sw[1] && lng<=c._ne[1]);
-  const pool = covering.length ? covering : ok;
-  pool.sort((a,b)=>{
-    const d=x=>Math.hypot(lat-(x._sw[0]+x._ne[0])/2, lng-(x._sw[1]+x._ne[1])/2);
-    return d(a.c)-d(b.c);
-  });
-  return pool[0].i;
-}
-
-function updateOpRow() {
-  const idx = getActiveChartIdx();
-  const dot  = document.getElementById('or-dot');
-  const name = document.getElementById('or-name');
-  const sl   = document.getElementById('op-slider');
-  const pct  = document.getElementById('or-pct');
-  if (idx < 0) {
-    dot.style.background = 'rgba(255,255,255,.2)';
-    name.textContent = 'Ingen karta';
-    sl.disabled = true;
-    return;
-  }
-  const c = charts[idx];
-  const color = CHART_COLORS[idx % CHART_COLORS.length];
-  dot.style.background = color;
-  name.textContent = c.name;
-  sl.disabled = false;
-  const v = Math.round(c._opacity * 100);
-  sl.value = v;
-  // Update slider gradient
-  sl.style.background = `linear-gradient(to right, ${color} ${v}%, rgba(255,255,255,.2) ${v}%)`;
-  pct.textContent = v + '%';
-}
-
-function opSlide(el) {
-  const idx = getActiveChartIdx();
-  if (idx < 0) return;
-  const c = charts[idx];
-  const v = +el.value;
-  c._opacity = v / 100;
-  if (c._layer) c._layer.setOpacity(c._opacity);
-  document.getElementById('or-pct').textContent = v + '%';
-  const color = CHART_COLORS[idx % CHART_COLORS.length];
-  el.style.background = `linear-gradient(to right, ${color} ${v}%, rgba(255,255,255,.2) ${v}%)`;
-  saveChart(c);
-  if (document.getElementById('layer-panel').classList.contains('open')) renderLayerBody();
-}
-
-map.on('moveend', updateOpRow);
-
-// ── FAKE POSITION ─────────────────────────────────────────────────
-let fakeMode = false;
-let fakePos  = null;
-let fakeMk   = null;
-
-const fakePinIcon = L.divIcon({
-  className: '',
-  html: '<div class="fake-pin"></div>',
-  iconSize: [14,14], iconAnchor: [7,7]
-});
-
-function toggleFakeMode() {
-  fakeMode = !fakeMode;
-  const btn = document.getElementById('btn-fake');
-  if (fakeMode) {
-    btn.textContent = '📍 Klicka…';
-    btn.classList.add('picking');
-    btn.classList.remove('active');
-  } else {
-    btn.textContent = fakePos ? '📍 Aktiv' : '📍 Testa';
-    btn.classList.remove('picking');
-    if (fakePos) btn.classList.add('active');
-  }
-}
-
-function setFakePos(lat, lng) {
-  fakePos  = { lat, lng };
-  fakeMode = false;
-  const ll = L.latLng(lat, lng);
-  fakeMk ? fakeMk.setLatLng(ll)
-         : (fakeMk = L.marker(ll,{icon:fakePinIcon,zIndexOffset:998}).addTo(map));
-  document.getElementById('fc-lat').textContent = dms(lat,'N','S');
-  document.getElementById('fc-lon').textContent = dms(lng,'E','W');
-  document.getElementById('fake-card').classList.add('visible');
-  document.getElementById('clat').textContent = dms(lat,'N','S');
-  document.getElementById('clon').textContent = dms(lng,'E','W');
-  const btn = document.getElementById('btn-fake');
-  btn.textContent = '📍 Aktiv';
-  btn.classList.remove('picking');
-  btn.classList.add('active');
-  updateOpRow();
-}
-
-function clearFakePos() {
-  fakePos = null; fakeMode = false;
-  if (fakeMk) { map.removeLayer(fakeMk); fakeMk = null; }
-  document.getElementById('fake-card').classList.remove('visible');
-  const btn = document.getElementById('btn-fake');
-  btn.textContent = '📍 Testa';
-  btn.classList.remove('picking','active');
-  if (locMk) {
-    const ll = locMk.getLatLng();
-    document.getElementById('clat').textContent = dms(ll.lat,'N','S');
-    document.getElementById('clon').textContent = dms(ll.lng,'E','W');
-  }
-  updateOpRow();
-}
-
-// ── FULLSCREEN ─────────────────────────────────────────────────────
-function toggleFS() {
-  const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-  if (!isFS) {
-    (document.documentElement.requestFullscreen ||
-     document.documentElement.webkitRequestFullscreen ||
-     (()=>{})).call(document.documentElement);
-  } else {
-    (document.exitFullscreen || document.webkitExitFullscreen || (()=>{})).call(document);
-  }
-}
-document.addEventListener('fullscreenchange', () => {
-  const isFS = !!document.fullscreenElement;
-  document.getElementById('btn-fs').textContent = isFS ? '✕ Fullskärm' : '⛶ Fullskärm';
-});
-
-// ── CALIBRATION FILE I/O ──────────────────────────────────────────
-
-
-
-function calibStatusHtml() {
-  if (!charts.length) return 'Inga kartor laddade ännu.';
-  return charts.map(c => {
-    const saved = localStorage.getItem(lsKey(c.id));
-    const hasCal = saved && JSON.parse(saved).sw;
-    return `<strong style="color:#fff">${c.name}</strong><br>` +
-      (hasCal
-        ? `<span style="color:var(--green)">✓ Kalibrerad (sparad lokalt)</span>`
-        : `<span style="color:var(--gold)">○ Använder standardvärden</span>`);
-  }).join('<br><br>');
-}
-
+// ═══════════════════════════════════════════════════════════════════
+//  CALIBRATION FILE I/O
+// ═══════════════════════════════════════════════════════════════════
 function exportCalib() {
-  const calibrations = {};
-  charts.forEach(c => {
-    calibrations[c.id] = { sw: c._sw, ne: c._ne };
-  });
   const out = {
-    version: '1.0',
-    exported: new Date().toISOString(),
-    note: 'Lägg denna fil i repot som calibration.json så laddas kalibreringen automatiskt',
-    calibrations
+    version:'1.0', exported:new Date().toISOString(),
+    note:'Lägg i repot som calibration.json för auto-laddning',
+    calibrations: Object.fromEntries(charts.map(c=>[c.id,{sw:c._sw,ne:c._ne}]))
   };
-  const blob = new Blob([JSON.stringify(out, null, 2)], {type: 'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'calibration.json';
-  a.click();
-  // Show confirmation
-  const box = document.getElementById('calib-status-box');
-  if (box) {
-    const orig = box.innerHTML;
-    box.innerHTML = '<span style="color:var(--green)">✓ calibration.json nedladdad! Lägg den i GitHub-repots rot.</span>';
-    setTimeout(() => { box.innerHTML = calibStatusHtml(); }, 4000);
-  }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
+  a.download='calibration.json'; a.click();
 }
 
 function importCalib(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
+  const file=input.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=e=>{
     try {
-      const data = JSON.parse(e.target.result);
-      const cals = data.calibrations || {};
-      let count = 0;
-      charts.forEach(c => {
-        if (cals[c.id]) {
-          c._sw = cals[c.id].sw;
-          c._ne = cals[c.id].ne;
-          rebuildLayer(c);
-          saveChart(c);
-          count++;
-        }
+      const data=JSON.parse(e.target.result), cals=data.calibrations||{};
+      let n=0;
+      charts.forEach(c=>{
+        if(cals[c.id]){c._sw=cals[c.id].sw;c._ne=cals[c.id].ne;rebuildLayer(c);saveChart(c);n++;}
       });
-      renderLayerBody();
-      
-      alert(`✓ Importerade kalibrering för ${count} karta${count!==1?'r':''}`);
-    } catch(err) {
-      alert('Kunde inte läsa filen: ' + err.message);
-    }
+      updateOpRow(); renderLayerBody();
+      alert(`✓ Importerade kalibrering för ${n} karta${n!==1?'r':''}`);
+    } catch(err) { alert('Kunde inte läsa filen: '+err.message); }
   };
-  reader.readAsText(file);
-  input.value = '';
+  r.readAsText(file); input.value='';
 }
 
-async function loadRepoCalibration() {
+async function loadRepoCalib() {
   try {
-    const r = await fetch('calibration.json?_=' + Date.now());
-    if (!r.ok) return;
-    const data = await r.json();
-    const cals = data.calibrations || {};
-    charts.forEach(c => {
-      // Only use repo calibration if no local override exists
-      if (!localStorage.getItem(lsKey(c.id)) && cals[c.id]) {
-        c._sw = cals[c.id].sw;
-        c._ne = cals[c.id].ne;
-        rebuildLayer(c);
-      }
+    const r=await fetch('calibration.json?_='+Date.now()); if(!r.ok) return;
+    const data=await r.json(), cals=data.calibrations||{};
+    charts.forEach(c=>{
+      if(!localStorage.getItem(lsKey(c.id))&&cals[c.id]){
+        c._sw=cals[c.id].sw; c._ne=cals[c.id].ne; rebuildLayer(c);}
     });
-    console.log('Loaded calibration.json from repo');
-    setTimeout(updateOpRow,100);
-    setTimeout(updateActiveOp, 200);
-    
-  } catch(e) {
-    // calibration.json not yet in repo — that's fine
-  }
+    updateOpRow();
+  } catch(e) {}
 }
 
-// ── INIT ───────────────────────────────────────────────────────────
-(async()=>{
+// ═══════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════
+(async () => {
   loadApp();
-  try{
-    const r=await fetch('charts.json?_='+Date.now());
-    const data=await r.json();
-    await initCharts(data.charts||[]);
-  }catch(e){document.getElementById('charts-sub').textContent='Kunde inte ladda charts.json';}
+  try {
+    const r = await fetch('charts.json?_='+Date.now());
+    const data = await r.json();
+    await initCharts(data.charts || []);
+  } catch(e) {
+    document.getElementById('t-sub').textContent = 'Kunde inte ladda charts.json';
+  }
+  await loadRepoCalib();
+  updateOpRow();
   startGPS();
 })();
 </script>
