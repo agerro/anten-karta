@@ -1,16 +1,39 @@
 {
-  "version": "1.0",
-  "charts": [
-    {
-      "id": "anten",
-      "name": "Anten sjökort",
-      "description": "1:50 000 · WGS84 · Lantmäteriet",
-      "file": "charts/anten.jpg",
-      "defaultBounds": {
-        "sw": [57.950, 12.450],
-        "ne": [58.030, 12.567]
+   "version":"1.0",
+   "charts":[
+      {
+         "id":"anten",
+         "name":"Anten sjökort",
+         "description":"1:50 000 · WGS84 · Lantmäteriet",
+         "file":"charts/anten.jpg",
+         "defaultBounds":{
+            "sw":[
+               57.950,
+               12.450
+            ],
+            "ne":[
+               58.030,
+               12.567
+            ]
+         },
+         "defaultOpacity":0.85
       },
-      "defaultOpacity": 0.85
-    }
-  ]
+      {
+         "id":"mjorn",
+         "name":"Mjörn",
+         "description":"fiskekort.se",
+         "file":"charts/mjörn_djupkarta.jpg",
+         "defaultBounds":{
+            "sw":[
+               57.845,
+               12.330
+            ],
+            "ne":[
+               57.955,
+               12.485
+            ]
+         },
+         "defaultOpacity":0.85
+      }
+   ]
 }
