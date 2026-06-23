@@ -136,43 +136,7 @@
     .preset small{font-family:monospace;font-size:11px;color:var(--muted);}
     .preset:active{background:rgba(42,138,170,.3);}
 
-    /* ── Quick opacity strip ── */
-    #quick-op{
-      position:absolute;bottom:0;left:0;right:0;z-index:999;
-      padding:8px 14px 6px;
-      background:linear-gradient(to top,rgba(11,26,46,.96) 0%,rgba(11,26,46,.60) 100%);
-      transition:transform .25s ease;
-    }
-    #quick-op.hidden{transform:translateY(110%);}
-    .qo-row{
-      display:flex;align-items:center;gap:8px;
-      padding:3px 0;
-    }
-    .qo-dot{
-      width:10px;height:10px;border-radius:50%;flex-shrink:0;
-      border:1.5px solid rgba(255,255,255,.4);
-    }
-    .qo-name{
-      font-size:11px;font-weight:700;color:#fff;
-      width:72px;flex-shrink:0;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    .qo-name.off{opacity:.4;}
-    .qo-slider{
-      flex:1;-webkit-appearance:none;height:3px;
-      border-radius:2px;outline:none;
-      background:rgba(255,255,255,.25);
-    }
-    .qo-slider::-webkit-slider-thumb{
-      -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
-      background:var(--gold);border:2px solid var(--bg);cursor:pointer;
-    }
-    .qo-slider:disabled{opacity:.25;pointer-events:none;}
-    .qo-pct{
-      font-size:10px;font-weight:700;color:var(--gold);
-      font-family:monospace;width:30px;text-align:right;flex-shrink:0;
-    }
-    .qo-pct.off{color:rgba(255,255,255,.3);}
+    
 
     .leaflet-pane,.leaflet-map-pane{z-index:1 !important;}
     .leaflet-tile-pane{z-index:2 !important;}
@@ -206,14 +170,13 @@
 <body>
 <div id="topbar">
   <div>
-    <div class="title">⚓ ANTEN <span class="vsub">v5.2</span></div>
+    <div class="title">⚓ ANTEN <span class="vsub">v5.3</span></div>
     <div class="sub" id="charts-sub">Laddar kartor…</div>
   </div>
   <div id="coord-box"><span id="clat">–</span><br><span id="clon">–</span></div>
 </div>
 <div id="gps-pill" class="search">◎ Söker GPS…</div>
 <div id="map"></div>
-<div id="quick-op"></div>
 <div id="bottom" style="padding-top:4px">
   <div class="btns">
     <button class="btn btn-gold"  onclick="locateMe()">◎ Hitta mig</button>
@@ -313,7 +276,7 @@ async function initCharts(raw){
 function fetchChart(c){
   c._status='loading'; renderLayerBody();
   const img=new Image();
-  img.onload=()=>{c._status='ok'; if(c._visible)addLayer(c); renderLayerBody(); renderQuickOp(); updateSub(); fitAll();};
+  img.onload=()=>{c._status='ok'; if(c._visible)addLayer(c); renderLayerBody(); renderOpFloat(); updateSub(); fitAll();};
   img.onerror=()=>{c._status='error'; renderLayerBody();};
   img.src=c.file;
 }
@@ -411,10 +374,10 @@ function renderLayerBody(){
   document.getElementById('layer-body').innerHTML=h;
 }
 
-function toggleChart(i){const c=charts[i];c._visible=!c._visible;rebuildLayer(c);saveChart(c);renderLayerBody();renderQuickOp();updateSub();}
+function toggleChart(i){const c=charts[i];c._visible=!c._visible;rebuildLayer(c);saveChart(c);renderLayerBody();renderOpFloat();updateSub();}
 function setOp(i,v,lbl){const c=charts[i];c._opacity=v/100;if(c._layer)c._layer.setOpacity(c._opacity);if(lbl)lbl.textContent=v+'%';saveChart(c);}
 function fitChart(i){map.fitBounds([charts[i]._sw,charts[i]._ne],{padding:[16,16]});closeLayers();}
-function moveChart(i,d){const j=i+d;if(j<0||j>=charts.length)return;[charts[i],charts[j]]=[charts[j],charts[i]];charts.forEach(rebuildLayer);renderLayerBody();renderQuickOp();}
+function moveChart(i,d){const j=i+d;if(j<0||j>=charts.length)return;[charts[i],charts[j]]=[charts[j],charts[i]];charts.forEach(rebuildLayer);renderLayerBody();}
 
 // ── CALIBRATION ────────────────────────────────────────────────────
 let calibIdx=-1,pickState='idle',refs=[],tempImgX,tempImgY,tempLat,tempLng,tempPin,confirmedPins=[];
@@ -456,7 +419,7 @@ function renderCalibBody(){
 function startPick(){
   document.getElementById('calib-panel').classList.remove('open');
   document.getElementById('bottom').classList.add('hidden');
-  document.getElementById('quick-op').classList.add('hidden');
+  hideOpFloat();
   const c=charts[calibIdx];
   if(c._layer)c._layer.setOpacity(.90);
   if(!osmOn)osm.addTo(map); osm.bringToBack();
@@ -521,7 +484,7 @@ function confirmPick(){
     if(c._layer)c._layer.setOpacity(c._opacity);
     if(!osmOn)map.removeLayer(osm);
     document.getElementById('bottom').classList.remove('hidden');
-  document.getElementById('quick-op').classList.remove('hidden');
+  showOpFloat();
     document.getElementById('calib-panel').classList.add('open');
     renderCalibBody();
   }
@@ -545,7 +508,7 @@ function cancelPick(){
   if(c?._layer)c._layer.setOpacity(c._opacity);
   if(!osmOn)map.removeLayer(osm);else osm.bringToBack();
   document.getElementById('bottom').classList.remove('hidden');
-  document.getElementById('quick-op').classList.remove('hidden');
+  showOpFloat();
   document.getElementById('calib-panel').classList.add('open');
   renderCalibBody();
 }
@@ -578,6 +541,13 @@ function applyCalib(){
   const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
   rebuildLayer(c);saveChart(c);
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
+  renderOpFloat();
+  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
+}
+function applyCalib_inner(){
+  const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
+  rebuildLayer(c);saveChart(c);
+  confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
   closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
   renderQuickOp();
 }
@@ -590,39 +560,55 @@ function _applyCalib_orig(){
 function applyPreset(sw,ne){const c=charts[calibIdx];c._sw=sw;c._ne=ne;rebuildLayer(c);saveChart(c);closeCalib();}
 
 
-// ── QUICK OPACITY STRIP ───────────────────────────────────────────
-const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
 
-function renderQuickOp() {
-  const el = document.getElementById('quick-op');
-  if (!charts.length) { el.innerHTML = ''; return; }
-  el.innerHTML = charts.map((c, i) => {
+// ── FLOATING OPACITY PANEL ────────────────────────────────────────
+const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
+let opFloatCollapsed = false;
+
+function renderOpFloat() {
+  const rows = document.getElementById('of-rows');
+  if (!rows) return;
+  if (!charts.length) { rows.innerHTML = '<span style="font-size:11px;color:var(--muted)">Inga kartor</span>'; return; }
+  rows.innerHTML = charts.map((c, i) => {
     const color  = CHART_COLORS[i % CHART_COLORS.length];
     const pct    = Math.round(c._opacity * 100);
     const active = c._visible && c._status === 'ok';
-    return `<div class="qo-row">
-      <div class="qo-dot" style="background:${active ? color : 'transparent'}"></div>
-      <span class="qo-name ${active?'':'off'}">${c.name}</span>
-      <input class="qo-slider" type="range" min="0" max="100" value="${pct}"
+    return `<div class="of-row">
+      <div class="of-dot" style="background:${active ? color : 'rgba(255,255,255,.15)'}"></div>
+      <span class="of-name ${active?'':'off'}">${c.name}</span>
+      <input class="of-slider" type="range" min="0" max="100" value="${pct}"
         ${!active ? 'disabled' : ''}
-        style="--thumb-color:${color}"
-        oninput="quickSetOp(${i}, this.value, this.nextElementSibling)">
-      <span class="qo-pct ${active?'':'off'}">${pct}%</span>
+        oninput="floatSetOp(${i}, this.value, this.nextElementSibling)">
+      <span class="of-pct ${active?'':'off'}">${pct}%</span>
     </div>`;
   }).join('');
 }
 
-function quickSetOp(i, val, lblEl) {
+function floatSetOp(i, val, lblEl) {
   const c = charts[i];
   c._opacity = val / 100;
   if (c._layer) c._layer.setOpacity(c._opacity);
   if (lblEl) lblEl.textContent = val + '%';
   saveChart(c);
-  // Sync menu slider if open
-  renderLayerBody();
+  // Sync layer panel if open
+  const panelOpen = document.getElementById('layer-panel').classList.contains('open');
+  if (panelOpen) renderLayerBody();
 }
 
+function toggleOpFloat() {
+  opFloatCollapsed = !opFloatCollapsed;
+  const el = document.getElementById('opacity-float');
+  el.classList.toggle('collapsed', opFloatCollapsed);
+  const btn = el.querySelector('.of-toggle');
+  if (btn) btn.textContent = opFloatCollapsed ? '+' : '−';
+}
+
+// Hide float panel during pick steps (map needs to be unobstructed for tapping)
+function hideOpFloat() { document.getElementById('opacity-float').style.display = 'none'; }
+function showOpFloat() { document.getElementById('opacity-float').style.display = ''; }
+
 // ── CALIBRATION FILE I/O ──────────────────────────────────────────
+
 function calibStatusHtml() {
   if (!charts.length) return 'Inga kartor laddade ännu.';
   return charts.map(c => {
@@ -679,6 +665,7 @@ function importCalib(input) {
         }
       });
       renderLayerBody();
+      renderOpFloat();
       alert(`✓ Importerade kalibrering för ${count} karta${count!==1?'r':''}`);
     } catch(err) {
       alert('Kunde inte läsa filen: ' + err.message);
@@ -703,7 +690,7 @@ async function loadRepoCalibration() {
       }
     });
     console.log('Loaded calibration.json from repo');
-    renderQuickOp();
+    renderOpFloat();
   } catch(e) {
     // calibration.json not yet in repo — that's fine
   }
