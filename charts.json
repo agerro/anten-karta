@@ -26,10 +26,27 @@
          "defaultBounds":{
             "sw":[
                57.845,
-               12.330
+               14.250
             ],
             "ne":[
                57.955,
+               14.350
+            ]
+         },
+         "defaultOpacity":0.85
+      },
+      {
+         "id":"ivosjon",
+         "name":"Ivösjön",
+         "description":"fiskekort.se",
+         "file":"charts/sjokart.jpg",
+         "defaultBounds":{
+            "sw":[
+               56.650,
+               12.330
+            ],
+            "ne":[
+               56.755,
                12.485
             ]
          },
