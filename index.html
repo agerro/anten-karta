@@ -177,11 +177,31 @@
 </div>
 <div id="gps-pill" class="search">◎ Söker GPS…</div>
 <div id="map"></div>
-<div id="bottom" style="padding-top:4px">
+<!-- Fake position card -->
+<div id="fake-card">
+  <div>
+    <div class="fc-label">📍 Testposition</div>
+    <div class="fc-coords" id="fc-lat">–</div>
+    <div class="fc-coords" id="fc-lon">–</div>
+  </div>
+  <button class="fc-remove" onclick="clearFakePos()">✕ Ta bort</button>
+</div>
+
+<div id="bottom">
+  <!-- Opacity row — always visible, controls active chart -->
+  <div id="op-row">
+    <div class="or-dot" id="or-dot"></div>
+    <span class="or-name" id="or-name">–</span>
+    <input type="range" id="op-slider" min="0" max="100" value="85"
+      oninput="opSlide(this)">
+    <span class="or-pct" id="or-pct">85%</span>
+  </div>
+  <!-- Main buttons -->
   <div class="btns">
     <button class="btn btn-gold"  onclick="locateMe()">◎ Hitta mig</button>
     <button class="btn btn-glass on" id="bosm" onclick="toggleOSM()">⊞ OSM</button>
-    <button class="btn btn-glass" onclick="fitAll()">⛶ Passa</button>
+    <button class="btn btn-glass" id="btn-fake" onclick="toggleFakeMode()">📍 Testa</button>
+    <button class="btn btn-glass" id="btn-fs" onclick="toggleFS()">⛶ Fullskärm</button>
     <button class="btn btn-glass" onclick="openLayers()">☰ Lager</button>
   </div>
 </div>
@@ -541,14 +561,14 @@ function applyCalib(){
   const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
   rebuildLayer(c);saveChart(c);
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
-  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
+  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});updateOpRow();
   updateActiveOp();
 }
 function applyCalib_inner(){
   const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
   rebuildLayer(c);saveChart(c);
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
-  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
+  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});updateOpRow();
   updateActiveOp();
   renderQuickOp();
 }
@@ -556,7 +576,7 @@ function _applyCalib_orig(){
   const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
   rebuildLayer(c);saveChart(c);
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
-  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
+  closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});updateOpRow();
   updateActiveOp();
 }
 function applyPreset(sw,ne){const c=charts[calibIdx];c._sw=sw;c._ne=ne;rebuildLayer(c);saveChart(c);closeCalib();}
@@ -728,7 +748,143 @@ function effectivePos() {
   return null;
 }
 
+
+// ── CHART COLORS ──────────────────────────────────────────────────
+const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
+
+// ── ACTIVE CHART + OPACITY ROW ────────────────────────────────────
+function getActiveChartIdx() {
+  // Use fake position if set, otherwise map center
+  const ref = fakePos || map.getCenter();
+  const lat = ref.lat ?? ref, lng = ref.lng ?? ref;
+  const ok = charts.map((c,i)=>({c,i})).filter(({c})=>c._visible && c._status==='ok');
+  if (!ok.length) return -1;
+  const covering = ok.filter(({c}) =>
+    lat>=c._sw[0] && lat<=c._ne[0] && lng>=c._sw[1] && lng<=c._ne[1]);
+  const pool = covering.length ? covering : ok;
+  pool.sort((a,b)=>{
+    const d=x=>Math.hypot(lat-(x._sw[0]+x._ne[0])/2, lng-(x._sw[1]+x._ne[1])/2);
+    return d(a.c)-d(b.c);
+  });
+  return pool[0].i;
+}
+
+function updateOpRow() {
+  const idx = getActiveChartIdx();
+  const dot  = document.getElementById('or-dot');
+  const name = document.getElementById('or-name');
+  const sl   = document.getElementById('op-slider');
+  const pct  = document.getElementById('or-pct');
+  if (idx < 0) {
+    dot.style.background = 'rgba(255,255,255,.2)';
+    name.textContent = 'Ingen karta';
+    sl.disabled = true;
+    return;
+  }
+  const c = charts[idx];
+  const color = CHART_COLORS[idx % CHART_COLORS.length];
+  dot.style.background = color;
+  name.textContent = c.name;
+  sl.disabled = false;
+  const v = Math.round(c._opacity * 100);
+  sl.value = v;
+  // Update slider gradient
+  sl.style.background = `linear-gradient(to right, ${color} ${v}%, rgba(255,255,255,.2) ${v}%)`;
+  pct.textContent = v + '%';
+}
+
+function opSlide(el) {
+  const idx = getActiveChartIdx();
+  if (idx < 0) return;
+  const c = charts[idx];
+  const v = +el.value;
+  c._opacity = v / 100;
+  if (c._layer) c._layer.setOpacity(c._opacity);
+  document.getElementById('or-pct').textContent = v + '%';
+  const color = CHART_COLORS[idx % CHART_COLORS.length];
+  el.style.background = `linear-gradient(to right, ${color} ${v}%, rgba(255,255,255,.2) ${v}%)`;
+  saveChart(c);
+  if (document.getElementById('layer-panel').classList.contains('open')) renderLayerBody();
+}
+
+map.on('moveend', updateOpRow);
+
+// ── FAKE POSITION ─────────────────────────────────────────────────
+let fakeMode = false;
+let fakePos  = null;
+let fakeMk   = null;
+
+const fakePinIcon = L.divIcon({
+  className: '',
+  html: '<div class="fake-pin"></div>',
+  iconSize: [14,14], iconAnchor: [7,7]
+});
+
+function toggleFakeMode() {
+  fakeMode = !fakeMode;
+  const btn = document.getElementById('btn-fake');
+  if (fakeMode) {
+    btn.textContent = '📍 Klicka…';
+    btn.classList.add('picking');
+    btn.classList.remove('active');
+  } else {
+    btn.textContent = fakePos ? '📍 Aktiv' : '📍 Testa';
+    btn.classList.remove('picking');
+    if (fakePos) btn.classList.add('active');
+  }
+}
+
+function setFakePos(lat, lng) {
+  fakePos  = { lat, lng };
+  fakeMode = false;
+  const ll = L.latLng(lat, lng);
+  fakeMk ? fakeMk.setLatLng(ll)
+         : (fakeMk = L.marker(ll,{icon:fakePinIcon,zIndexOffset:998}).addTo(map));
+  document.getElementById('fc-lat').textContent = dms(lat,'N','S');
+  document.getElementById('fc-lon').textContent = dms(lng,'E','W');
+  document.getElementById('fake-card').classList.add('visible');
+  document.getElementById('clat').textContent = dms(lat,'N','S');
+  document.getElementById('clon').textContent = dms(lng,'E','W');
+  const btn = document.getElementById('btn-fake');
+  btn.textContent = '📍 Aktiv';
+  btn.classList.remove('picking');
+  btn.classList.add('active');
+  updateOpRow();
+}
+
+function clearFakePos() {
+  fakePos = null; fakeMode = false;
+  if (fakeMk) { map.removeLayer(fakeMk); fakeMk = null; }
+  document.getElementById('fake-card').classList.remove('visible');
+  const btn = document.getElementById('btn-fake');
+  btn.textContent = '📍 Testa';
+  btn.classList.remove('picking','active');
+  if (locMk) {
+    const ll = locMk.getLatLng();
+    document.getElementById('clat').textContent = dms(ll.lat,'N','S');
+    document.getElementById('clon').textContent = dms(ll.lng,'E','W');
+  }
+  updateOpRow();
+}
+
+// ── FULLSCREEN ─────────────────────────────────────────────────────
+function toggleFS() {
+  const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!isFS) {
+    (document.documentElement.requestFullscreen ||
+     document.documentElement.webkitRequestFullscreen ||
+     (()=>{})).call(document.documentElement);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen || (()=>{})).call(document);
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const isFS = !!document.fullscreenElement;
+  document.getElementById('btn-fs').textContent = isFS ? '✕ Fullskärm' : '⛶ Fullskärm';
+});
+
 // ── CALIBRATION FILE I/O ──────────────────────────────────────────
+
 
 
 function calibStatusHtml() {
@@ -812,6 +968,7 @@ async function loadRepoCalibration() {
       }
     });
     console.log('Loaded calibration.json from repo');
+    setTimeout(updateOpRow,100);
     setTimeout(updateActiveOp, 200);
     
   } catch(e) {
