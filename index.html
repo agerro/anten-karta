@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Sjökort – Anten</title>
+  <title>Öppna Sjökort</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <style>
@@ -170,7 +170,7 @@
 <body>
 <div id="topbar">
   <div>
-    <div class="title">⚓ ANTEN <span class="vsub">v5.3</span></div>
+    <div class="title">⚓ Öppna Sjökort <span class="vsub">v5.4</span></div>
     <div class="sub" id="charts-sub">Laddar kartor…</div>
   </div>
   <div id="coord-box"><span id="clat">–</span><br><span id="clon">–</span></div>
@@ -276,7 +276,7 @@ async function initCharts(raw){
 function fetchChart(c){
   c._status='loading'; renderLayerBody();
   const img=new Image();
-  img.onload=()=>{c._status='ok'; if(c._visible)addLayer(c); renderLayerBody(); renderOpFloat(); updateSub(); fitAll();};
+  img.onload=()=>{c._status='ok'; if(c._visible)addLayer(c); renderLayerBody();  updateSub(); fitAll();};
   img.onerror=()=>{c._status='error'; renderLayerBody();};
   img.src=c.file;
 }
@@ -318,6 +318,7 @@ function startGPS(){
     document.getElementById('clat').textContent=dms(ll.lat,'N','S');
     document.getElementById('clon').textContent=dms(ll.lng,'E','W');
     if(firstFix){firstFix=false;map.setView(ll,14,{animate:true});}
+    updateDepth();
     pill('◎ GPS aktiv · ±'+(a<10?a.toFixed(1):Math.round(a))+'m','ok');
     setTimeout(()=>{if(document.getElementById('gps-pill').classList.contains('ok'))
       document.getElementById('gps-pill').style.opacity='0';},3500);
@@ -374,7 +375,7 @@ function renderLayerBody(){
   document.getElementById('layer-body').innerHTML=h;
 }
 
-function toggleChart(i){const c=charts[i];c._visible=!c._visible;rebuildLayer(c);saveChart(c);renderLayerBody();renderOpFloat();updateSub();}
+function toggleChart(i){const c=charts[i];c._visible=!c._visible;rebuildLayer(c);saveChart(c);renderLayerBody();updateActiveOp();updateSub();}
 function setOp(i,v,lbl){const c=charts[i];c._opacity=v/100;if(c._layer)c._layer.setOpacity(c._opacity);if(lbl)lbl.textContent=v+'%';saveChart(c);}
 function fitChart(i){map.fitBounds([charts[i]._sw,charts[i]._ne],{padding:[16,16]});closeLayers();}
 function moveChart(i,d){const j=i+d;if(j<0||j>=charts.length)return;[charts[i],charts[j]]=[charts[j],charts[i]];charts.forEach(rebuildLayer);renderLayerBody();}
@@ -419,7 +420,7 @@ function renderCalibBody(){
 function startPick(){
   document.getElementById('calib-panel').classList.remove('open');
   document.getElementById('bottom').classList.add('hidden');
-  hideOpFloat();
+  document.getElementById('active-op').classList.add('hidden');
   const c=charts[calibIdx];
   if(c._layer)c._layer.setOpacity(.90);
   if(!osmOn)osm.addTo(map); osm.bringToBack();
@@ -484,7 +485,7 @@ function confirmPick(){
     if(c._layer)c._layer.setOpacity(c._opacity);
     if(!osmOn)map.removeLayer(osm);
     document.getElementById('bottom').classList.remove('hidden');
-  showOpFloat();
+  updateActiveOp();
     document.getElementById('calib-panel').classList.add('open');
     renderCalibBody();
   }
@@ -508,7 +509,7 @@ function cancelPick(){
   if(c?._layer)c._layer.setOpacity(c._opacity);
   if(!osmOn)map.removeLayer(osm);else osm.bringToBack();
   document.getElementById('bottom').classList.remove('hidden');
-  showOpFloat();
+  updateActiveOp();
   document.getElementById('calib-panel').classList.add('open');
   renderCalibBody();
 }
@@ -541,14 +542,15 @@ function applyCalib(){
   const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
   rebuildLayer(c);saveChart(c);
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
-  renderOpFloat();
   closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
+  updateActiveOp();
 }
 function applyCalib_inner(){
   const c=charts[calibIdx],nb=calcBounds(c);c._sw=nb[0];c._ne=nb[1];
   rebuildLayer(c);saveChart(c);
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
   closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
+  updateActiveOp();
   renderQuickOp();
 }
 function _applyCalib_orig(){
@@ -556,58 +558,146 @@ function _applyCalib_orig(){
   rebuildLayer(c);saveChart(c);
   confirmedPins.forEach(p=>map.removeLayer(p));confirmedPins=[];refs=[];
   closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
+  updateActiveOp();
 }
 function applyPreset(sw,ne){const c=charts[calibIdx];c._sw=sw;c._ne=ne;rebuildLayer(c);saveChart(c);closeCalib();}
 
 
 
-// ── FLOATING OPACITY PANEL ────────────────────────────────────────
-const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
-let opFloatCollapsed = false;
 
-function renderOpFloat() {
-  const rows = document.getElementById('of-rows');
-  if (!rows) return;
-  if (!charts.length) { rows.innerHTML = '<span style="font-size:11px;color:var(--muted)">Inga kartor</span>'; return; }
-  rows.innerHTML = charts.map((c, i) => {
-    const color  = CHART_COLORS[i % CHART_COLORS.length];
-    const pct    = Math.round(c._opacity * 100);
-    const active = c._visible && c._status === 'ok';
-    return `<div class="of-row">
-      <div class="of-dot" style="background:${active ? color : 'rgba(255,255,255,.15)'}"></div>
-      <span class="of-name ${active?'':'off'}">${c.name}</span>
-      <input class="of-slider" type="range" min="0" max="100" value="${pct}"
-        ${!active ? 'disabled' : ''}
-        oninput="floatSetOp(${i}, this.value, this.nextElementSibling)">
-      <span class="of-pct ${active?'':'off'}">${pct}%</span>
-    </div>`;
-  }).join('');
+// ── ACTIVE CHART OPACITY CONTROL ─────────────────────────────────
+const CHART_COLORS = ['#2a8aaa','#f5a623','#9b59b6','#2ecc71','#e74c3c'];
+let _activeChartIdx = -1;
+
+function getActiveChartIdx() {
+  const c = map.getCenter();
+  const lat = c.lat, lng = c.lng;
+  const ok = charts.map((ch, i) => ({ch, i}))
+    .filter(({ch}) => ch._visible && ch._status === 'ok');
+  if (!ok.length) return -1;
+  // Prefer charts that contain the point; else closest center
+  const covering = ok.filter(({ch}) =>
+    lat >= ch._sw[0] && lat <= ch._ne[0] &&
+    lng >= ch._sw[1] && lng <= ch._ne[1]);
+  const pool = covering.length ? covering : ok;
+  pool.sort((a, b) => {
+    const d = ch => Math.hypot(
+      lat - (ch._sw[0]+ch._ne[0])/2,
+      lng - (ch._sw[1]+ch._ne[1])/2
+    );
+    return d(a.ch) - d(b.ch);
+  });
+  return pool[0].i;
 }
 
-function floatSetOp(i, val, lblEl) {
-  const c = charts[i];
+function updateActiveOp() {
+  const idx = getActiveChartIdx();
+  const el = document.getElementById('active-op');
+  if (idx < 0) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const c = charts[idx];
+  const color = CHART_COLORS[idx % CHART_COLORS.length];
+  document.getElementById('ao-dot').style.background = color;
+  document.getElementById('ao-name').textContent = c.name;
+  const pct = Math.round(c._opacity * 100);
+  document.getElementById('ao-slider').value = pct;
+  document.getElementById('ao-pct').textContent = pct + '%';
+  if (_activeChartIdx !== idx) {
+    _activeChartIdx = idx;
+    // Prep canvas for depth estimation
+    prepDepthCanvas(c);
+  }
+}
+
+function aoSlide(val) {
+  const idx = getActiveChartIdx();
+  if (idx < 0) return;
+  const c = charts[idx];
   c._opacity = val / 100;
   if (c._layer) c._layer.setOpacity(c._opacity);
-  if (lblEl) lblEl.textContent = val + '%';
+  document.getElementById('ao-pct').textContent = val + '%';
   saveChart(c);
-  // Sync layer panel if open
   const panelOpen = document.getElementById('layer-panel').classList.contains('open');
   if (panelOpen) renderLayerBody();
 }
 
-function toggleOpFloat() {
-  opFloatCollapsed = !opFloatCollapsed;
-  const el = document.getElementById('opacity-float');
-  el.classList.toggle('collapsed', opFloatCollapsed);
-  const btn = el.querySelector('.of-toggle');
-  if (btn) btn.textContent = opFloatCollapsed ? '+' : '−';
+map.on('move', updateActiveOp);
+map.on('moveend', () => { updateActiveOp(); updateDepth(); });
+
+// ── FULLSCREEN ────────────────────────────────────────────────────
+function toggleFS() {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    (document.documentElement.requestFullscreen ||
+     document.documentElement.webkitRequestFullscreen ||
+     (() => {})).call(document.documentElement);
+    document.getElementById('btn-fs').textContent = '✕ Helskärm';
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen ||
+     (() => {})).call(document);
+    document.getElementById('btn-fs').textContent = '⛶ Fullskärm';
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const inFS = !!document.fullscreenElement;
+  document.getElementById('btn-fs').textContent = inFS ? '✕ Helskärm' : '⛶ Fullskärm';
+});
+
+// ── DEPTH ESTIMATION (colour sampling) ───────────────────────────
+const _depthCtx = {};  // id → {ctx, w, h}
+
+function prepDepthCanvas(c) {
+  if (_depthCtx[c.id]) return;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    _depthCtx[c.id] = { ctx, w: img.width, h: img.height };
+    updateDepth();
+  };
+  img.onerror = () => {};
+  img.src = c.file + '?_cb=' + Date.now(); // bust cache for CORS
 }
 
-// Hide float panel during pick steps (map needs to be unobstructed for tapping)
-function hideOpFloat() { document.getElementById('opacity-float').style.display = 'none'; }
-function showOpFloat() { document.getElementById('opacity-float').style.display = ''; }
+function sampleDepth(c, lat, lng) {
+  const d = _depthCtx[c.id];
+  if (!d) return null;
+  const px = Math.round((lng - c._sw[1]) / (c._ne[1] - c._sw[1]) * d.w);
+  const py = Math.round((c._ne[0] - lat) / (c._ne[0] - c._sw[0]) * d.h);
+  if (px < 0 || px >= d.w || py < 0 || py >= d.h) return null;
+  try {
+    const [r, g, b] = d.ctx.getImageData(px, py, 1, 1).data;
+    // Land: green/brown dominant (G > B and R > B−30)
+    if (g > b + 15 && r > b - 30) return { on: 'land' };
+    // White margin / no data
+    if (r > 230 && g > 230 && b > 230) return null;
+    // Water: blue dominant — use brightness to estimate depth category
+    const bright = (r + g + b) / 3;
+    if (bright > 195) return { on: 'water', label: 'Grunt',        range: '0–3 m' };
+    if (bright > 165) return { on: 'water', label: 'Grundt-medel', range: '3–8 m' };
+    if (bright > 135) return { on: 'water', label: 'Medel',        range: '8–15 m' };
+    if (bright > 105) return { on: 'water', label: 'Djupt',        range: '15–25 m' };
+    return               { on: 'water', label: 'Mycket djupt',  range: '>25 m' };
+  } catch (e) { return null; }
+}
+
+function updateDepth() {
+  if (!locMk) return;
+  const ll = locMk.getLatLng();
+  const idx = getActiveChartIdx();
+  const badge = document.getElementById('depth-badge');
+  if (idx < 0) { badge.classList.remove('visible'); return; }
+  const result = sampleDepth(charts[idx], ll.lat, ll.lng);
+  if (!result) { badge.classList.remove('visible'); return; }
+  if (result.on === 'land') { badge.classList.remove('visible'); return; }
+  document.getElementById('depth-value').textContent = result.label + ' · ' + result.range;
+  badge.classList.add('visible');
+}
 
 // ── CALIBRATION FILE I/O ──────────────────────────────────────────
+
 
 function calibStatusHtml() {
   if (!charts.length) return 'Inga kartor laddade ännu.';
@@ -665,7 +755,7 @@ function importCalib(input) {
         }
       });
       renderLayerBody();
-      renderOpFloat();
+      
       alert(`✓ Importerade kalibrering för ${count} karta${count!==1?'r':''}`);
     } catch(err) {
       alert('Kunde inte läsa filen: ' + err.message);
@@ -690,7 +780,8 @@ async function loadRepoCalibration() {
       }
     });
     console.log('Loaded calibration.json from repo');
-    renderOpFloat();
+    setTimeout(updateActiveOp, 200);
+    
   } catch(e) {
     // calibration.json not yet in repo — that's fine
   }
