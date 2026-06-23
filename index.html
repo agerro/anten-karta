@@ -167,7 +167,7 @@
 <body>
 <div id="topbar">
   <div>
-    <div class="title">⚓ ANTEN <span class="vsub">v5.0</span></div>
+    <div class="title">⚓ ANTEN <span class="vsub">v5.1</span></div>
     <div class="sub" id="charts-sub">Laddar kartor…</div>
   </div>
   <div id="coord-box"><span id="clat">–</span><br><span id="clon">–</span></div>
@@ -209,7 +209,12 @@
     <div class="fp-sub">Hantera sjökort och kartlager</div>
   </div>
   <div class="fp-body" id="layer-body"></div>
-  <div class="fp-foot">
+  <div class="fp-foot" style="flex-direction:column;gap:8px">
+    <div style="display:flex;gap:8px;width:100%">
+      <button class="btn btn-glass" style="font-size:11px" onclick="exportCalib()">⬇ Exportera kalibrering</button>
+      <button class="btn btn-glass" style="font-size:11px" onclick="document.getElementById('import-file').click()">⬆ Importera</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importCalib(this)">
+    </div>
     <button class="btn btn-glass" onclick="closeLayers()">✕ Stäng</button>
   </div>
 </div>
@@ -354,6 +359,8 @@ function renderLayerBody(){
       </div>`:''}
     </div>`;
   });
+  h+=`<div class="sec">Kalibreringsstatus</div>`;
+  h+=`<div class="info-box" id="calib-status-box">${calibStatusHtml()}</div>`;
   h+=`<div class="sec">Lägg till fler kartor</div>
   <div class="info-box">
     Lägg till direkt i GitHub-repot:<br><br>
@@ -531,6 +538,92 @@ function applyCalib(){
   closeCalib();map.fitBounds([c._sw,c._ne],{padding:[16,16]});
 }
 function applyPreset(sw,ne){const c=charts[calibIdx];c._sw=sw;c._ne=ne;rebuildLayer(c);saveChart(c);closeCalib();}
+
+// ── CALIBRATION FILE I/O ──────────────────────────────────────────
+function calibStatusHtml() {
+  if (!charts.length) return 'Inga kartor laddade ännu.';
+  return charts.map(c => {
+    const saved = localStorage.getItem(lsKey(c.id));
+    const hasCal = saved && JSON.parse(saved).sw;
+    return `<strong style="color:#fff">${c.name}</strong><br>` +
+      (hasCal
+        ? `<span style="color:var(--green)">✓ Kalibrerad (sparad lokalt)</span>`
+        : `<span style="color:var(--gold)">○ Använder standardvärden</span>`);
+  }).join('<br><br>');
+}
+
+function exportCalib() {
+  const calibrations = {};
+  charts.forEach(c => {
+    calibrations[c.id] = { sw: c._sw, ne: c._ne };
+  });
+  const out = {
+    version: '1.0',
+    exported: new Date().toISOString(),
+    note: 'Lägg denna fil i repot som calibration.json så laddas kalibreringen automatiskt',
+    calibrations
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'calibration.json';
+  a.click();
+  // Show confirmation
+  const box = document.getElementById('calib-status-box');
+  if (box) {
+    const orig = box.innerHTML;
+    box.innerHTML = '<span style="color:var(--green)">✓ calibration.json nedladdad! Lägg den i GitHub-repots rot.</span>';
+    setTimeout(() => { box.innerHTML = calibStatusHtml(); }, 4000);
+  }
+}
+
+function importCalib(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const cals = data.calibrations || {};
+      let count = 0;
+      charts.forEach(c => {
+        if (cals[c.id]) {
+          c._sw = cals[c.id].sw;
+          c._ne = cals[c.id].ne;
+          rebuildLayer(c);
+          saveChart(c);
+          count++;
+        }
+      });
+      renderLayerBody();
+      alert(`✓ Importerade kalibrering för ${count} karta${count!==1?'r':''}`);
+    } catch(err) {
+      alert('Kunde inte läsa filen: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+async function loadRepoCalibration() {
+  try {
+    const r = await fetch('calibration.json?_=' + Date.now());
+    if (!r.ok) return;
+    const data = await r.json();
+    const cals = data.calibrations || {};
+    charts.forEach(c => {
+      // Only use repo calibration if no local override exists
+      if (!localStorage.getItem(lsKey(c.id)) && cals[c.id]) {
+        c._sw = cals[c.id].sw;
+        c._ne = cals[c.id].ne;
+        rebuildLayer(c);
+      }
+    });
+    console.log('Loaded calibration.json from repo');
+  } catch(e) {
+    // calibration.json not yet in repo — that's fine
+  }
+}
 
 // ── INIT ───────────────────────────────────────────────────────────
 (async()=>{
