@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "exported": "2026-06-23T09:13:05.445Z",
+  "note": "Lägg denna fil i repot som calibration.json så laddas kalibreringen automatiskt",
+  "calibrations": {
+    "anten": {
+      "sw": [
+        57.984157948425,
+        12.43577113354542
+      ],
+      "ne": [
+        58.08719794482864,
+        12.58947030956917
+      ]
+    },
+    "mjorn": {
+      "sw": [
+        57.82188989980644,
+        12.303949455116495
+      ],
+      "ne": [
+        57.982210343269266,
+        12.518063496858288
+      ]
+    }
+  }
+}
