@@ -246,6 +246,28 @@
     .xhair::before { top:50%;left:0;right:0;height:2px;transform:translateY(-50%); }
     .xhair::after  { left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%); }
 
+
+    /* ── Depth badge ── */
+    #depth-badge {
+      position: absolute;
+      left: 12px; bottom: 90px;
+      z-index: 1000;
+      background: rgba(11,26,46,.90);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 10px;
+      padding: 7px 12px;
+      display: none;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 130px;
+    }
+    #depth-badge.visible { display: flex; }
+    .db-label { font-size:9px; font-weight:800; color:var(--muted);
+      letter-spacing:.8px; text-transform:uppercase; }
+    .db-value { font-size:14px; font-weight:800; color:#fff; }
+    .db-range { font-size:11px; color:var(--teal); }
+    .db-warn  { font-size:9px;  color:rgba(255,255,255,.35); margin-top:2px; }
     /* Leaflet overrides */
     .leaflet-pane,.leaflet-map-pane { z-index:1 !important; }
     .leaflet-tile-pane    { z-index:2 !important; }
@@ -267,7 +289,7 @@
 <!-- Top bar -->
 <div id="topbar">
   <div>
-    <div class="t-title">⚓ Öppna Sjökort <span class="t-ver">v6.0</span></div>
+    <div class="t-title">⚓ Öppna Sjökort <span class="t-ver">v6.1</span></div>
     <div class="t-sub" id="t-sub">Laddar kartor…</div>
   </div>
   <div id="t-coords"><span id="t-lat">–</span><br><span id="t-lon">–</span></div>
@@ -275,6 +297,14 @@
 <div id="gps-pill" class="search">◎ Söker GPS…</div>
 
 <div id="map"></div>
+
+<!-- Depth badge -->
+<div id="depth-badge">
+  <span class="db-label">Uppskattat djup</span>
+  <span class="db-value" id="db-value">–</span>
+  <span class="db-range" id="db-range"></span>
+  <span class="db-warn">⚠ Ungefärligt</span>
+</div>
 
 <!-- Fake position card -->
 <div id="fake-card">
@@ -434,6 +464,7 @@ function fetchChart(c) {
     updateOpRow();
     renderLayerBody();
     fitVisible();
+    prepDepthCanvas(c);
   };
   img.onerror = () => { c._status = 'error'; renderLayerBody(); };
   img.src = c.file;
@@ -493,6 +524,7 @@ function startGPS() {
         document.getElementById('t-lon').textContent = dms(ll.lng,'E','W');
       }
       if (firstFix) { firstFix=false; map.setView(ll,14,{animate:true}); }
+      updateDepth();
       const as = a < 10 ? a.toFixed(1)+'m' : Math.round(a)+'m';
       setPill('◎ GPS aktiv · ±'+as,'ok');
       setTimeout(() => {
@@ -584,7 +616,7 @@ function opSlide(el) {
   if (document.getElementById('layer-panel').classList.contains('open')) renderLayerBody();
 }
 
-map.on('moveend', updateOpRow);
+map.on('moveend', () => { updateOpRow(); updateDepth(); });
 
 // ═══════════════════════════════════════════════════════════════════
 //  FAKE POSITION
@@ -618,6 +650,7 @@ function setFake(lat, lng) {
   btn.classList.remove('pick'); btn.classList.add('active');
   btn.textContent = '📍 Aktiv';
   updateOpRow();
+  updateDepth();
 }
 
 function clearFake() {
@@ -635,6 +668,7 @@ function clearFake() {
     document.getElementById('t-lon').textContent = '–';
   }
   updateOpRow();
+  updateDepth();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -944,6 +978,78 @@ async function loadRepoCalib() {
     });
     updateOpRow();
   } catch(e) {}
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+//  DEPTH ESTIMATION  (tiny 300px canvas — ~400KB, not 40MB)
+// ═══════════════════════════════════════════════════════════════════
+const _depthCtx = {};   // chartId → { ctx, w, h }
+
+function prepDepthCanvas(c) {
+  if (_depthCtx[c.id]) { updateDepth(); return; }
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    // Scale DOWN to max 300px wide before drawing → tiny canvas
+    const scale = Math.min(1, 300 / img.naturalWidth);
+    const w = Math.round(img.naturalWidth  * scale);
+    const h = Math.round(img.naturalHeight * scale);
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    _depthCtx[c.id] = { ctx, w, h };
+    updateDepth();
+  };
+  img.onerror = () => {};
+  // Use the same URL — same-origin on GitHub Pages, no CORS issue
+  img.src = c.file;
+}
+
+function sampleDepth(c, lat, lng) {
+  const d = _depthCtx[c.id];
+  if (!d) return null;
+  // Map lat/lng → pixel in the thumbnail
+  const px = Math.round((lng - c._sw[1]) / (c._ne[1] - c._sw[1]) * d.w);
+  const py = Math.round((c._ne[0] - lat)  / (c._ne[0] - c._sw[0]) * d.h);
+  if (px < 0 || px >= d.w || py < 0 || py >= d.h) return null;
+  try {
+    const [r, g, b] = d.ctx.getImageData(px, py, 1, 1).data;
+    // Land: green/brown dominant
+    if (g > b + 18 || (r > 160 && g > 160 && b < 140)) return { type:'land' };
+    // Near-white margin / no data
+    if (r > 225 && g > 225 && b > 225) return null;
+    // Water: estimate depth from brightness
+    // Lighter blue = shallower, darker = deeper
+    const bright = (r + g + b) / 3;
+    if (bright > 190) return { type:'water', label:'Grunt',        range:'0–5 m'  };
+    if (bright > 160) return { type:'water', label:'Grunt–medel',  range:'5–10 m' };
+    if (bright > 130) return { type:'water', label:'Medel',        range:'10–20 m'};
+    if (bright > 100) return { type:'water', label:'Djupt',        range:'20–30 m'};
+    return                 { type:'water', label:'Mycket djupt', range:'>30 m'  };
+  } catch(e) { return null; }
+}
+
+function updateDepth() {
+  // Use fake position or real GPS
+  const pos = fakePos || (locMk ? locMk.getLatLng() : null);
+  const badge = document.getElementById('depth-badge');
+  if (!pos) { badge.classList.remove('visible'); return; }
+
+  const idx = getActiveIdx();
+  if (idx < 0) { badge.classList.remove('visible'); return; }
+
+  const c = charts[idx];
+  // Kick off canvas load if not ready yet
+  if (!_depthCtx[c.id]) { prepDepthCanvas(c); return; }
+
+  const result = sampleDepth(c, pos.lat, pos.lng);
+  if (!result || result.type === 'land') { badge.classList.remove('visible'); return; }
+
+  document.getElementById('db-value').textContent = result.label;
+  document.getElementById('db-range').textContent = result.range;
+  badge.classList.add('visible');
 }
 
 // ═══════════════════════════════════════════════════════════════════
