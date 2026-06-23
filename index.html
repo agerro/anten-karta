@@ -170,7 +170,7 @@
 <body>
 <div id="topbar">
   <div>
-    <div class="title">⚓ Öppna Sjökort <span class="vsub">v5.4</span></div>
+    <div class="title">⚓ Öppna Sjökort <span class="vsub">v5.5</span></div>
     <div class="sub" id="charts-sub">Laddar kartor…</div>
   </div>
   <div id="coord-box"><span id="clat">–</span><br><span id="clon">–</span></div>
@@ -318,7 +318,6 @@ function startGPS(){
     document.getElementById('clat').textContent=dms(ll.lat,'N','S');
     document.getElementById('clon').textContent=dms(ll.lng,'E','W');
     if(firstFix){firstFix=false;map.setView(ll,14,{animate:true});}
-    updateDepth();
     pill('◎ GPS aktiv · ±'+(a<10?a.toFixed(1):Math.round(a))+'m','ok');
     setTimeout(()=>{if(document.getElementById('gps-pill').classList.contains('ok'))
       document.getElementById('gps-pill').style.opacity='0';},3500);
@@ -590,7 +589,12 @@ function getActiveChartIdx() {
   return pool[0].i;
 }
 
+let _aoTimer = null;
 function updateActiveOp() {
+  clearTimeout(_aoTimer);
+  _aoTimer = setTimeout(_doUpdateActiveOp, 80);
+}
+function _doUpdateActiveOp() {
   const idx = getActiveChartIdx();
   const el = document.getElementById('active-op');
   if (idx < 0) { el.classList.add('hidden'); return; }
@@ -604,8 +608,6 @@ function updateActiveOp() {
   document.getElementById('ao-pct').textContent = pct + '%';
   if (_activeChartIdx !== idx) {
     _activeChartIdx = idx;
-    // Prep canvas for depth estimation
-    prepDepthCanvas(c);
   }
 }
 
@@ -621,8 +623,7 @@ function aoSlide(val) {
   if (panelOpen) renderLayerBody();
 }
 
-map.on('move', updateActiveOp);
-map.on('moveend', () => { updateActiveOp(); updateDepth(); });
+map.on('moveend', updateActiveOp);
 
 // ── FULLSCREEN ────────────────────────────────────────────────────
 function toggleFS() {
@@ -641,60 +642,6 @@ document.addEventListener('fullscreenchange', () => {
   const inFS = !!document.fullscreenElement;
   document.getElementById('btn-fs').textContent = inFS ? '✕ Helskärm' : '⛶ Fullskärm';
 });
-
-// ── DEPTH ESTIMATION (colour sampling) ───────────────────────────
-const _depthCtx = {};  // id → {ctx, w, h}
-
-function prepDepthCanvas(c) {
-  if (_depthCtx[c.id]) return;
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const cv = document.createElement('canvas');
-    cv.width = img.width; cv.height = img.height;
-    const ctx = cv.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    _depthCtx[c.id] = { ctx, w: img.width, h: img.height };
-    updateDepth();
-  };
-  img.onerror = () => {};
-  img.src = c.file + '?_cb=' + Date.now(); // bust cache for CORS
-}
-
-function sampleDepth(c, lat, lng) {
-  const d = _depthCtx[c.id];
-  if (!d) return null;
-  const px = Math.round((lng - c._sw[1]) / (c._ne[1] - c._sw[1]) * d.w);
-  const py = Math.round((c._ne[0] - lat) / (c._ne[0] - c._sw[0]) * d.h);
-  if (px < 0 || px >= d.w || py < 0 || py >= d.h) return null;
-  try {
-    const [r, g, b] = d.ctx.getImageData(px, py, 1, 1).data;
-    // Land: green/brown dominant (G > B and R > B−30)
-    if (g > b + 15 && r > b - 30) return { on: 'land' };
-    // White margin / no data
-    if (r > 230 && g > 230 && b > 230) return null;
-    // Water: blue dominant — use brightness to estimate depth category
-    const bright = (r + g + b) / 3;
-    if (bright > 195) return { on: 'water', label: 'Grunt',        range: '0–3 m' };
-    if (bright > 165) return { on: 'water', label: 'Grundt-medel', range: '3–8 m' };
-    if (bright > 135) return { on: 'water', label: 'Medel',        range: '8–15 m' };
-    if (bright > 105) return { on: 'water', label: 'Djupt',        range: '15–25 m' };
-    return               { on: 'water', label: 'Mycket djupt',  range: '>25 m' };
-  } catch (e) { return null; }
-}
-
-function updateDepth() {
-  if (!locMk) return;
-  const ll = locMk.getLatLng();
-  const idx = getActiveChartIdx();
-  const badge = document.getElementById('depth-badge');
-  if (idx < 0) { badge.classList.remove('visible'); return; }
-  const result = sampleDepth(charts[idx], ll.lat, ll.lng);
-  if (!result) { badge.classList.remove('visible'); return; }
-  if (result.on === 'land') { badge.classList.remove('visible'); return; }
-  document.getElementById('depth-value').textContent = result.label + ' · ' + result.range;
-  badge.classList.add('visible');
-}
 
 // ── CALIBRATION FILE I/O ──────────────────────────────────────────
 
