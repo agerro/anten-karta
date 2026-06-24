@@ -268,7 +268,43 @@
     .db-value { font-size:14px; font-weight:800; color:#fff; }
     .db-range { font-size:11px; color:var(--teal); }
     .db-warn  { font-size:9px;  color:rgba(255,255,255,.35); margin-top:2px; }
+
+    /* ── Depth calibration ── */
+    .dc-row {
+      display:flex; align-items:center; gap:8px; margin-bottom:8px;
+    }
+    .dc-swatch {
+      width:22px; height:22px; border-radius:6px; flex-shrink:0;
+      border:1.5px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.1);
+    }
+    .dc-info { flex:1; }
+    .dc-name { font-size:11px; font-weight:700; color:#fff; }
+    .dc-val  { font-size:10px; color:var(--muted); font-family:monospace; }
+    .dc-btn  {
+      padding:6px 10px; border:1px solid rgba(255,255,255,.22);
+      border-radius:7px; background:rgba(255,255,255,.08);
+      color:#fff; font-size:11px; font-weight:600; cursor:pointer;
+      flex-shrink:0;
+    }
+    .dc-btn:active { opacity:.7; }
+    .dc-btn.ready  { border-color:var(--teal); color:#7dd3fc; }
+    .depth-max-row {
+      display:flex; align-items:center; gap:10px; margin-bottom:12px;
+    }
+    .depth-max-row label { font-size:12px; color:var(--muted); }
+    .depth-max-row input {
+      width:70px; background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.22); border-radius:7px;
+      padding:7px 10px; font-size:14px; font-weight:700;
+      color:#fff; font-family:monospace; outline:none;
+      text-align:center;
+    }
+    .depth-max-row input:focus { border-color:var(--gold); }
+    .depth-max-row span { font-size:12px; color:var(--muted); }
+
     /* Leaflet overrides */
+
     .leaflet-pane,.leaflet-map-pane { z-index:1 !important; }
     .leaflet-tile-pane    { z-index:2 !important; }
     .leaflet-overlay-pane { z-index:3 !important; }
@@ -289,7 +325,7 @@
 <!-- Top bar -->
 <div id="topbar">
   <div>
-    <div class="t-title">⚓ Öppna Sjökort <span class="t-ver">v6.1</span></div>
+    <div class="t-title">⚓ Öppna Sjökort <span class="t-ver">v6.2</span></div>
     <div class="t-sub" id="t-sub">Laddar kartor…</div>
   </div>
   <div id="t-coords"><span id="t-lat">–</span><br><span id="t-lon">–</span></div>
@@ -405,7 +441,8 @@ const lsApp  = ()  => 'oc_app_v1';
 
 function saveChart(c) {
   localStorage.setItem(lsKey(c.id),
-    JSON.stringify({ sw:c._sw, ne:c._ne, opacity:c._opacity, visible:c._visible }));
+    JSON.stringify({ sw:c._sw, ne:c._ne, opacity:c._opacity, visible:c._visible,
+                     depthCal:c._depthCal||null }));
 }
 function loadChart(c) {
   try {
@@ -415,6 +452,7 @@ function loadChart(c) {
       if (s.ne)      c._ne      = s.ne;
       if (s.opacity != null) c._opacity = s.opacity;
       if (s.visible != null) c._visible = s.visible;
+      if (s.depthCal)        c._depthCal = s.depthCal;
     }
   } catch(e) {}
 }
@@ -445,7 +483,8 @@ async function initCharts(rawList) {
       _opacity: r.defaultOpacity ?? 0.85,
       _visible: true,
       _layer:   null,
-      _status:  'loading',
+      _status:   'loading',
+      _depthCal: null,   // { maxDepth, shallowColor:{r,g,b}, deepColor:{r,g,b} }
     };
     loadChart(c);
     charts.push(c);
@@ -793,6 +832,46 @@ function renderCalibBody() {
   <div class="sec">Förinställningar</div>`;
   const db = charts[calibIdx].defaultBounds;
   h+=`<button class="preset" onclick='applyPreset(${JSON.stringify(db.sw)},${JSON.stringify(db.ne)})'><strong>Återställ standard</strong><br><small>SW ${db.sw.map(v=>v.toFixed(3)).join(', ')} · NE ${db.ne.map(v=>v.toFixed(3)).join(', ')}</small></button>`;
+  // ── Depth calibration section ──────────────────────────────────
+  const cal = c._depthCal || {};
+  const sc  = cal.shallowColor;
+  const dc  = cal.deepColor;
+  const scRgb = sc ? `rgb(${sc.r},${sc.g},${sc.b})` : null;
+  const dcRgb = dc ? `rgb(${dc.r},${dc.g},${dc.b})` : null;
+  const canvasReady = !!_depthCtx[c.id];
+
+  h += `<div class="sec" style="margin-top:16px">Djupkalibrering</div>
+  <div class="depth-max-row">
+    <label>Max djup</label>
+    <input type="number" id="dc-maxdepth" min="1" max="500"
+      value="${cal.maxDepth||''}" placeholder="–" oninput="saveDepthMax(this.value)">
+    <span>m</span>
+  </div>
+  <div class="dc-row">
+    <div class="dc-swatch" id="dc-sc-swatch"
+      style="${scRgb?'background:'+scRgb:''}"></div>
+    <div class="dc-info">
+      <div class="dc-name">Grundfärg</div>
+      <div class="dc-val">${sc?'R:'+sc.r+' G:'+sc.g+' B:'+sc.b:'Ej satt'}</div>
+    </div>
+    <button class="dc-btn ${sc?'ready':''}"
+      onclick="${canvasReady?'pickDepthColor(\'shallow\')':'prepAndPick(\'shallow\')'}">
+      ${sc?'Ändra':'Sätt på karta'}</button>
+  </div>
+  <div class="dc-row">
+    <div class="dc-swatch" id="dc-dc-swatch"
+      style="${dcRgb?'background:'+dcRgb:''}"></div>
+    <div class="dc-info">
+      <div class="dc-name">Djupfärg</div>
+      <div class="dc-val">${dc?'R:'+dc.r+' G:'+dc.g+' B:'+dc.b:'Ej satt'}</div>
+    </div>
+    <button class="dc-btn ${dc?'ready':''}"
+      onclick="${canvasReady?'pickDepthColor(\'deep\')':'prepAndPick(\'deep\')'}">
+      ${dc?'Ändra':'Sätt på karta'}</button>
+  </div>
+  ${(!canvasReady)?'<div style="font-size:11px;color:var(--muted);margin-top:4px">⏳ Kartbild laddas för färgsampling…</div>':''}
+  `;
+
   document.getElementById('calib-body').innerHTML = h;
   const ab=document.getElementById('apply-btn');
   if(n>=2){ab.style.display='';ab.textContent=`✓ Tillämpa (${n} punkter)`;}
@@ -815,6 +894,37 @@ function startPick() {
 
 function onPickClick(e) {
   const ll=e.latlng, c=charts[calibIdx];
+
+  // ── Colour pick for depth calibration ────────────────────────
+  if (pickState === 'picking-color') {
+    map.off('click', onPickClick);
+    document.getElementById('pick-banner').classList.remove('visible');
+    document.getElementById('bottom').classList.remove('hidden');
+    pickState = 'idle';
+    if (c._layer) c._layer.setOpacity(c._opacity);
+    if (!osmOn) map.removeLayer(osmTile);
+
+    // Sample colour from the thumbnail canvas at this lat/lng
+    const d = _depthCtx[c.id];
+    if (d) {
+      const px = Math.round((ll.lng - c._sw[1]) / (c._ne[1] - c._sw[1]) * d.w);
+      const py = Math.round((c._ne[0] - ll.lat) / (c._ne[0] - c._sw[0]) * d.h);
+      if (px >= 0 && px < d.w && py >= 0 && py < d.h) {
+        try {
+          const [r, g, b] = d.ctx.getImageData(px, py, 1, 1).data;
+          if (!c._depthCal) c._depthCal = {};
+          if (_depthPickTarget === 'shallow') c._depthCal.shallowColor = {r,g,b};
+          else                                c._depthCal.deepColor    = {r,g,b};
+          saveChart(c);
+        } catch(err) { console.warn('colour sample failed', err); }
+      }
+    }
+    document.getElementById('calib-panel').classList.add('open');
+    renderCalibBody();
+    updateDepth();
+    return;
+  }
+
   if(pickState==='picking-img'||pickState==='img-pending'){
     if(tempPin) map.removeLayer(tempPin);
     tempPin=L.marker(ll,{icon:xIcon,zIndexOffset:2000}).addTo(map);
@@ -896,6 +1006,51 @@ function cancelPick() {
   renderCalibBody();
 }
 
+
+// ─── Depth colour calibration ────────────────────────────────────
+let _depthPickTarget = null;   // 'shallow' | 'deep'
+
+function saveDepthMax(val) {
+  const c = charts[calibIdx];
+  if (!c._depthCal) c._depthCal = {};
+  c._depthCal.maxDepth = val ? +val : null;
+  saveChart(c);
+}
+
+function prepAndPick(target) {
+  // Canvas not ready yet — load it, then start pick
+  const c = charts[calibIdx];
+  prepDepthCanvas(c);
+  // Wait for canvas then pick
+  const poll = setInterval(() => {
+    if (_depthCtx[c.id]) { clearInterval(poll); pickDepthColor(target); }
+  }, 200);
+}
+
+function pickDepthColor(target) {
+  _depthPickTarget = target;
+  document.getElementById('calib-panel').classList.remove('open');
+  document.getElementById('bottom').classList.add('hidden');
+  const c = charts[calibIdx];
+  if (c._layer) c._layer.setOpacity(.92);
+  if (!osmOn) osmTile.addTo(map); osmTile.bringToBack();
+
+  const label = target === 'shallow' ? 'GRUNT STÄLLE' : 'DJUPT STÄLLE';
+  const hint  = target === 'shallow'
+    ? 'Tryck på ett känt grunt ställe i sjökortet'
+    : 'Tryck på ett känt djupt ställe i sjökortet';
+  document.getElementById('pb-badge').textContent = label;
+  document.getElementById('pb-badge').className = 'pb-badge ' +
+    (target === 'shallow' ? 'badge-img' : 'badge-osm');
+  document.getElementById('pb-title').textContent = hint;
+  document.getElementById('pb-hint').textContent  =
+    'Karta: ' + c.name + ' — ett klick samplar färgen direkt';
+  document.getElementById('pick-banner').classList.add('visible');
+
+  pickState = 'picking-color';
+  map.on('click', onPickClick);
+}
+
 function delRef(i) {
   refs.splice(i,1);
   for(let j=i*2;j<i*2+2&&j<cPins.length;j++){if(cPins[j])map.removeLayer(cPins[j]);}
@@ -944,7 +1099,9 @@ function exportCalib() {
   const out = {
     version:'1.0', exported:new Date().toISOString(),
     note:'Lägg i repot som calibration.json för auto-laddning',
-    calibrations: Object.fromEntries(charts.map(c=>[c.id,{sw:c._sw,ne:c._ne}]))
+    calibrations: Object.fromEntries(charts.map(c=>[c.id,{
+      sw:c._sw, ne:c._ne, depthCal:c._depthCal||null
+    }]))
   };
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
@@ -959,7 +1116,11 @@ function importCalib(input) {
       const data=JSON.parse(e.target.result), cals=data.calibrations||{};
       let n=0;
       charts.forEach(c=>{
-        if(cals[c.id]){c._sw=cals[c.id].sw;c._ne=cals[c.id].ne;rebuildLayer(c);saveChart(c);n++;}
+        if(cals[c.id]){
+          c._sw=cals[c.id].sw; c._ne=cals[c.id].ne;
+          if(cals[c.id].depthCal) c._depthCal=cals[c.id].depthCal;
+          rebuildLayer(c); saveChart(c); n++;
+        }
       });
       updateOpRow(); renderLayerBody();
       alert(`✓ Importerade kalibrering för ${n} karta${n!==1?'r':''}`);
@@ -974,7 +1135,10 @@ async function loadRepoCalib() {
     const data=await r.json(), cals=data.calibrations||{};
     charts.forEach(c=>{
       if(!localStorage.getItem(lsKey(c.id))&&cals[c.id]){
-        c._sw=cals[c.id].sw; c._ne=cals[c.id].ne; rebuildLayer(c);}
+        c._sw=cals[c.id].sw; c._ne=cals[c.id].ne;
+        if(cals[c.id].depthCal) c._depthCal=cals[c.id].depthCal;
+        rebuildLayer(c);
+      }
     });
     updateOpRow();
   } catch(e) {}
@@ -1010,24 +1174,40 @@ function prepDepthCanvas(c) {
 function sampleDepth(c, lat, lng) {
   const d = _depthCtx[c.id];
   if (!d) return null;
-  // Map lat/lng → pixel in the thumbnail
   const px = Math.round((lng - c._sw[1]) / (c._ne[1] - c._sw[1]) * d.w);
   const py = Math.round((c._ne[0] - lat)  / (c._ne[0] - c._sw[0]) * d.h);
   if (px < 0 || px >= d.w || py < 0 || py >= d.h) return null;
   try {
     const [r, g, b] = d.ctx.getImageData(px, py, 1, 1).data;
-    // Land: green/brown dominant
     if (g > b + 18 || (r > 160 && g > 160 && b < 140)) return { type:'land' };
-    // Near-white margin / no data
     if (r > 225 && g > 225 && b > 225) return null;
-    // Water: estimate depth from brightness
-    // Lighter blue = shallower, darker = deeper
+
+    const cal = c._depthCal;
+    if (cal?.shallowColor && cal?.deepColor && cal?.maxDepth) {
+      // ── Calibrated: use RGB distance to interpolate ──────────────
+      const sc = cal.shallowColor, dc = cal.deepColor;
+      const dShallow = Math.sqrt((r-sc.r)**2+(g-sc.g)**2+(b-sc.b)**2);
+      const dDeep    = Math.sqrt((r-dc.r)**2+(g-dc.g)**2+(b-dc.b)**2);
+      const total = dShallow + dDeep;
+      if (total < 1) return { type:'water', label:'–', range:'–' };
+      const t = Math.max(0, Math.min(1, dShallow / total)); // 0=shallow 1=deep
+      const depth = Math.round(t * cal.maxDepth);
+      // Bucket label
+      const pct = t * 100;
+      const label = pct < 20 ? 'Grunt'
+                  : pct < 45 ? 'Grunt–medel'
+                  : pct < 65 ? 'Medel'
+                  : pct < 85 ? 'Djupt' : 'Mycket djupt';
+      return { type:'water', label, range:`~${depth} m`, depth };
+    }
+
+    // ── Generic fallback: brightness heuristic ────────────────────
     const bright = (r + g + b) / 3;
     if (bright > 190) return { type:'water', label:'Grunt',        range:'0–5 m'  };
     if (bright > 160) return { type:'water', label:'Grunt–medel',  range:'5–10 m' };
     if (bright > 130) return { type:'water', label:'Medel',        range:'10–20 m'};
     if (bright > 100) return { type:'water', label:'Djupt',        range:'20–30 m'};
-    return                 { type:'water', label:'Mycket djupt', range:'>30 m'  };
+    return                   { type:'water', label:'Mycket djupt', range:'>30 m'  };
   } catch(e) { return null; }
 }
 
