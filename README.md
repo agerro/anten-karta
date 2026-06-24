@@ -2,8 +2,8 @@
 
 En mobilanpassad webbapp för sjökortsnavigering med GPS, stöd för flera kartlager och djupuppskattning.
 
-**Live:** https://agerro.github.io/anten-karta/
-**Repo:** https://github.com/agerro/anten-karta
+**Live:** https://agerro.github.io/open-lakecharts/
+**Repo:** https://github.com/agerro/open-lakecharts
 
 ---
 
@@ -31,7 +31,7 @@ Appen körs direkt i webbläsaren på mobil eller dator — ingen installation k
 
 ### Installera som app på Android
 
-1. Öppna https://agerro.github.io/anten-karta/ i **Chrome**
+1. Öppna https://agerro.github.io/open-lakecharts/ i **Chrome**
 2. Tryck på ⋮ (menyknappen) → **Lägg till på startskärmen**
 3. Appen installeras som en PWA och öppnas i helskärm utan webbläsarens adressfält
 
@@ -208,7 +208,7 @@ Kalibreringen sparas lokalt i webbläsarens localStorage och är enhetsbunden. F
 Om `calibration.json` läggs i GitHub-repots rot laddas kalibreringen automatiskt av alla enheter som inte har en lokal override:
 
 ```
-anten-karta/
+open-lakecharts/
 ├── calibration.json   ← läggs hit
 ├── charts.json
 └── charts/
@@ -233,7 +233,7 @@ Nya sjökort läggs till genom att skicka en pull request till repot. Du behöve
 
 #### 1. Forka repot
 
-Gå till https://github.com/agerro/anten-karta och tryck **Fork**.
+Gå till https://github.com/agerro/open-lakecharts och tryck **Fork**.
 
 #### 2. Lägg till kartbilden
 
@@ -308,7 +308,7 @@ Standardpositionerna är sällan helt exakta. När kartan är inlagd, kalibrera 
 ## Filstruktur
 
 ```
-anten-karta/
+open-lakecharts/
 ├── index.html          Appen (HTML + CSS + JS, ~50 KB)
 ├── charts.json         Kartregister — lista över alla tillgängliga sjökort
 ├── calibration.json    Sparad kalibrering (genereras av appen, committas manuellt)
